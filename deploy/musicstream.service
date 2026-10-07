@@ -1,0 +1,23 @@
+# systemd user service. Install:
+#   mkdir -p ~/.config/systemd/user && cp deploy/musicstream.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now musicstream
+#   loginctl enable-linger $USER   # keep running after logout
+[Unit]
+Description=Music stream server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/Documents/app_music_stream/backend
+ExecStart=%h/Documents/app_music_stream/backend/bin/musicserver serve -config config.yaml
+Restart=on-failure
+RestartSec=5
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h/Documents/app_music_stream
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target

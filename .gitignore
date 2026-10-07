@@ -1,0 +1,6 @@
+bin/
+data/
+config.yaml
+*.json.key
+firebase-service-account*.json
+.idea/
