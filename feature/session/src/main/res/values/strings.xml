@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pairing -->
+    <string name="pair_title">連線到你的音樂伺服器</string>
+    <string name="pair_description">在電腦上執行 musicserver，把終端機顯示的連線碼（MS1: 開頭）貼到下方。</string>
+    <string name="pair_code_label">連線碼</string>
+    <string name="pair_connect">連線</string>
+    <string name="pair_manual">手動輸入位址</string>
+    <string name="pair_manual_host">伺服器位址（例如 192.168.1.10:8443）</string>
+    <string name="pair_manual_pin">憑證指紋 sha256/…（使用 HTTPS 時必填）</string>
+    <string name="pair_use_code">改用連線碼</string>
+
+    <!-- Login -->
+    <string name="login_title">登入</string>
+    <string name="login_username">帳號</string>
+    <string name="login_password">密碼</string>
+    <string name="login_submit">登入</string>
+    <string name="login_change_server">更換伺服器</string>
+
+    <!-- Settings -->
+    <string name="settings">設定</string>
+    <string name="server_section">伺服器</string>
+    <string name="server_version">版本 %1$s</string>
+    <string name="server_tracks">%1$d 首歌曲</string>
+    <string name="server_scanning">正在掃描音樂資料夾…</string>
+    <string name="server_transcode_on">WMA 轉檔：已啟用</string>
+    <string name="server_transcode_off">WMA 轉檔：未啟用（伺服器未安裝 ffmpeg）</string>
+    <string name="logout">登出</string>
+    <string name="forget_server">登出並忘記伺服器</string>
+</resources>

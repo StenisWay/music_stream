@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is allowed because many internet radio stations only offer
+  http:// streams, and a server reached over Tailscale may run without TLS.
+  The home server itself uses HTTPS with public-key pinning (see
+  ServerTrustManager), and user-installed CAs are never trusted.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
