@@ -16,6 +16,8 @@
     <string name="filter_hint">篩選…</string>
     <string name="albums">專輯</string>
     <string name="all_songs">所有歌曲</string>
+    <string name="my_favorites">我的最愛</string>
+    <string name="my_favorites_hint">收藏的歌曲與自訂播放清單</string>
 
     <!-- Search -->
     <string name="search_hint">搜尋歌曲、歌手、專輯</string>
@@ -30,6 +32,6 @@
     <string name="added_to_queue">已加到播放佇列</string>
 
     <!-- Favorites -->
-    <string name="favorites">我的最愛</string>
+    <string name="favorites">收藏的歌曲</string>
     <string name="no_favorites">還沒有最愛的歌曲，點歌曲旁的選單加入吧。</string>
 </resources>

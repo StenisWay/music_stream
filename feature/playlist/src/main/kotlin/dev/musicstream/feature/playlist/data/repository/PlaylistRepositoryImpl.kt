@@ -8,6 +8,7 @@ import dev.musicstream.feature.playlist.data.remote.PlaylistRequest
 import dev.musicstream.feature.playlist.data.remote.RenameRequest
 import dev.musicstream.feature.playlist.data.remote.TrackIdsRequest
 import dev.musicstream.feature.playlist.domain.model.Playlist
+import dev.musicstream.feature.playlist.domain.model.PlaylistChoice
 import dev.musicstream.feature.playlist.domain.model.PlaylistSummary
 import dev.musicstream.feature.playlist.domain.repository.PlaylistRepository
 import javax.inject.Inject
@@ -17,6 +18,12 @@ import javax.inject.Singleton
 class PlaylistRepositoryImpl @Inject constructor(private val api: PlaylistApi) : PlaylistRepository {
     override suspend fun playlists() = apiCall {
         api.playlists().items.map { PlaylistSummary(it.id, it.name, it.trackCount) }
+    }
+
+    override suspend fun choicesFor(trackId: Long) = apiCall {
+        api.playlists(containsTrack = trackId).items.map {
+            PlaylistChoice(PlaylistSummary(it.id, it.name, it.trackCount), it.containsTrack == true)
+        }
     }
 
     override suspend fun playlist(id: Long) = apiCall { api.playlist(id).toDomain() }
@@ -33,6 +40,9 @@ class PlaylistRepositoryImpl @Inject constructor(private val api: PlaylistApi) :
 
     override suspend fun appendTracks(id: Long, trackIds: List<Long>) =
         apiCall { api.appendPlaylistTracks(id, TrackIdsRequest(trackIds)).toDomain() }
+
+    override suspend fun removeTrack(id: Long, trackId: Long) =
+        apiCall { api.removePlaylistTrack(id, trackId).toDomain() }
 
     override suspend fun delete(id: Long) = apiCall { api.deletePlaylist(id) }
 

@@ -15,6 +15,8 @@ data class ParsedFeed(
     val description: String,
     val artworkUrl: String?,
     val episodes: List<ParsedEpisode>,
+    /** RFC 5005 paged feeds: URL of the page with older episodes, if any. */
+    val nextPageUrl: String? = null,
 )
 
 data class ParsedEpisode(
@@ -33,6 +35,7 @@ data class ParsedEpisode(
  */
 object RssParser {
     private const val ITUNES = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+    private const val ATOM = "http://www.w3.org/2005/Atom"
     private const val MAX_DESCRIPTION = 4000
 
     fun parse(input: InputStream, feedUrl: String): ParsedFeed {
@@ -59,6 +62,7 @@ object RssParser {
         private var author = ""
         private var description = ""
         private var artwork: String? = null
+        private var nextPage: String? = null
         private val episodes = mutableListOf<ParsedEpisode>()
 
         // current item
@@ -89,6 +93,8 @@ object RssParser {
                     if (inItem) iImage = href else if (artwork == null) artwork = href
                 }
                 localName == "image" -> inImage = true
+                localName == "link" && uri == ATOM && !inItem && attrs.getValue("rel") == "next" ->
+                    nextPage = attrs.getValue("href")?.let { resolve(it) }
                 localName == "enclosure" && inItem -> {
                     val type = attrs.getValue("type").orEmpty()
                     // Prefer the first audio enclosure.
@@ -143,7 +149,12 @@ object RssParser {
             )
         }
 
-        fun result() = ParsedFeed(title.ifBlank { feedUrl }, author, stripHtml(description), artwork, episodes)
+        fun result() = ParsedFeed(title.ifBlank { feedUrl }, author, stripHtml(description), artwork, episodes, nextPage)
+
+        /** `href` may be relative to the feed; only http(s) pages are followed, never the feed itself. */
+        private fun resolve(href: String): String? = runCatching { java.net.URI(feedUrl).resolve(href.trim()).toString() }
+            .getOrNull()
+            ?.takeIf { (it.startsWith("https://") || it.startsWith("http://")) && it != feedUrl }
     }
 
     private val rfc822 = Regex("""^(?:[A-Za-z]{3},?\s+)?(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(\S*)$""")

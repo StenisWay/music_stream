@@ -3,12 +3,18 @@ package dev.musicstream.feature.playlist.domain.usecase
 import dev.musicstream.core.common.AppError
 import dev.musicstream.core.common.runCatchingApp
 import dev.musicstream.feature.playlist.domain.model.Playlist
+import dev.musicstream.feature.playlist.domain.model.PlaylistChoice
 import dev.musicstream.feature.playlist.domain.model.PlaylistSummary
 import dev.musicstream.feature.playlist.domain.repository.PlaylistRepository
 import javax.inject.Inject
 
 class GetPlaylistsUseCase @Inject constructor(private val repo: PlaylistRepository) {
     suspend operator fun invoke(): Result<List<PlaylistSummary>> = runCatchingApp { repo.playlists() }
+}
+
+/** All playlists, each marked with whether it already holds [trackId]. */
+class GetPlaylistChoicesUseCase @Inject constructor(private val repo: PlaylistRepository) {
+    suspend operator fun invoke(trackId: Long): Result<List<PlaylistChoice>> = runCatchingApp { repo.choicesFor(trackId) }
 }
 
 class GetPlaylistUseCase @Inject constructor(private val repo: PlaylistRepository) {
@@ -28,6 +34,12 @@ class CreatePlaylistUseCase @Inject constructor(private val repo: PlaylistReposi
 class AddToPlaylistUseCase @Inject constructor(private val repo: PlaylistRepository) {
     suspend operator fun invoke(playlistId: Long, trackIds: List<Long>): Result<Playlist> =
         runCatchingApp { repo.appendTracks(playlistId, trackIds) }
+}
+
+/** Removes every occurrence of [trackId] from the playlist. */
+class RemoveTrackFromPlaylistUseCase @Inject constructor(private val repo: PlaylistRepository) {
+    suspend operator fun invoke(playlistId: Long, trackId: Long): Result<Playlist> =
+        runCatchingApp { repo.removeTrack(playlistId, trackId) }
 }
 
 /** Removes the entry at [position] (playlists may contain a track twice). */

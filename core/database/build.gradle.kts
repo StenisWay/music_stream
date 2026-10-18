@@ -34,4 +34,9 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    // Replays migrations on a real SQLite on the JVM (no device needed).
+    testImplementation(libs.junit)
+    testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.kotlinx.serialization.json)
 }

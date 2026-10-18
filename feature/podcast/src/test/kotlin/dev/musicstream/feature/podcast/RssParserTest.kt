@@ -66,6 +66,23 @@ class RssParserTest {
         val result = runCatching { RssParser.parse(xxe.byteInputStream(), "u") }
         assertTrue(result.isFailure || !result.getOrThrow().title.contains("root:"))
     }
+
+    @Test
+    fun pagedFeedNextLink() {
+        fun feed(links: String) = """
+            <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
+              <title>t</title>$links
+              <item><title>x</title><atom:link rel="next" href="https://example/item-level"/>
+                <enclosure url="https://cdn/x.mp3" type="audio/mpeg"/></item>
+            </channel></rss>
+        """.trimIndent().byteInputStream()
+
+        val paged = RssParser.parse(feed("""<atom:link rel="self" href="https://example/feed"/><atom:link rel="next" href="feed?page=2"/>"""), "https://example/feed")
+        assertEquals("https://example/feed?page=2", paged.nextPageUrl)
+        assertEquals(null, RssParser.parse(feed(""), "https://example/feed").nextPageUrl)
+        // A "next" pointing back at the same page must not loop.
+        assertEquals(null, RssParser.parse(feed("""<atom:link rel="next" href="https://example/feed"/>"""), "https://example/feed").nextPageUrl)
+    }
 }
 
 class RssDateTest {

@@ -14,11 +14,16 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -28,7 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,11 +71,13 @@ fun LibraryScreen(
     player: PlayerController,
     onArtist: (String) -> Unit,
     onAlbum: (String) -> Unit,
+    onMyFavorites: () -> Unit,
     vm: LibraryViewModel = hiltViewModel(),
 ) {
     val tab by vm.tab.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
+        MyFavoritesCard(onMyFavorites)
         PrimaryTabRow(selectedTabIndex = tab.ordinal) {
             listOf(R.string.tab_songs, R.string.tab_artists, R.string.tab_albums).forEachIndexed { i, label ->
                 Tab(selected = tab.ordinal == i, onClick = { vm.tab.value = LibraryTab.entries[i] }, text = { Text(stringResource(label)) })
@@ -86,6 +95,20 @@ fun LibraryScreen(
             LibraryTab.ARTISTS -> ArtistsTab(vm.artists.collectAsLazyPagingItems(), onArtist)
             LibraryTab.ALBUMS -> AlbumsTab(vm.albums.collectAsLazyPagingItems(), onAlbum)
         }
+    }
+}
+
+/** Entry to the favourites / custom playlists hub, above the library tabs. */
+@Composable
+private fun MyFavoritesCard(onClick: () -> Unit) {
+    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.my_favorites), fontWeight = FontWeight.SemiBold) },
+            supportingContent = { Text(stringResource(R.string.my_favorites_hint)) },
+            leadingContent = { Icon(Icons.Default.Favorite, null, tint = MaterialTheme.colorScheme.primary) },
+            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        )
     }
 }
 

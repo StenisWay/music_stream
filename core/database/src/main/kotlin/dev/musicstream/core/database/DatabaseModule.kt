@@ -14,9 +14,12 @@ import javax.inject.Singleton
 object DatabaseModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "musicstream.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "musicstream.db")
+            .addMigrations(Migrations.MIGRATION_1_2)
+            .build()
 
     @Provides fun podcastDao(db: AppDatabase) = db.podcasts()
     @Provides fun episodeDao(db: AppDatabase) = db.episodes()
+    @Provides fun episodeHistoryDao(db: AppDatabase) = db.episodeHistory()
     @Provides fun stationDao(db: AppDatabase) = db.stations()
 }

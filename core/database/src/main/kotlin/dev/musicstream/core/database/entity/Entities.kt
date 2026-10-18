@@ -14,6 +14,8 @@ data class PodcastEntity(
     val artworkUrl: String?,
     val subscribedAt: Long,
     val lastRefreshedAt: Long,
+    /** RFC 5005 "next" page of the feed (older episodes) not fetched yet; null when there is none. */
+    val olderPageUrl: String? = null,
 )
 
 @Entity(
@@ -30,9 +32,25 @@ data class EpisodeEntity(
     val publishedAt: Long,
     val durationMs: Long,
     val artworkUrl: String?,
-    val positionMs: Long = 0,
-    val completed: Boolean = false,
-    val lastPlayedAt: Long = 0,
+)
+
+/**
+ * What the user listened to and whether they finished it. Independent of
+ * subscriptions (no foreign key) so previews are recorded too and the
+ * history survives unsubscribing; it carries enough metadata to replay.
+ */
+@Entity(tableName = "episode_history", indices = [Index("feedUrl"), Index("lastPlayedAt")])
+data class EpisodeHistoryEntity(
+    @PrimaryKey val episodeId: String,
+    val feedUrl: String,
+    val podcastTitle: String,
+    val title: String,
+    val audioUrl: String,
+    val artworkUrl: String?,
+    val durationMs: Long,
+    val positionMs: Long,
+    val completed: Boolean,
+    val lastPlayedAt: Long,
 )
 
 @Entity(tableName = "radio_favorites")

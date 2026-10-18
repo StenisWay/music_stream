@@ -48,12 +48,14 @@ import dev.musicstream.feature.player.MiniPlayer
 import dev.musicstream.feature.player.NowPlayingSheet
 import dev.musicstream.feature.player.PlaybackErrorEffect
 import dev.musicstream.feature.player.PlayerViewModel
+import dev.musicstream.feature.playlist.presentation.collections.CollectionsScreen
 import dev.musicstream.feature.playlist.presentation.detail.PlaylistScreen
 import dev.musicstream.feature.playlist.presentation.me.MeScreen
 import dev.musicstream.feature.playlist.presentation.picker.AddToPlaylistHost
 import dev.musicstream.feature.playlist.presentation.picker.AddToPlaylistViewModel
 import dev.musicstream.feature.playlist.presentation.picker.addToPlaylistMenu
 import dev.musicstream.feature.podcast.presentation.PodcastDetailScreen
+import dev.musicstream.feature.podcast.presentation.PodcastHistoryScreen
 import dev.musicstream.feature.podcast.presentation.PodcastsScreen
 import dev.musicstream.feature.radio.presentation.RadioScreen
 import dev.musicstream.feature.session.presentation.settings.SettingsScreen
@@ -119,6 +121,14 @@ fun MainScaffold() {
                     LibraryScreen(
                         trackActions = trackActions, player = controller,
                         onArtist = { nav.navigate(ArtistRoute(it)) }, onAlbum = { nav.navigate(AlbumRoute(it)) },
+                        onMyFavorites = { nav.navigate(CollectionsRoute) },
+                    )
+                }
+                composable<CollectionsRoute> {
+                    CollectionsScreen(
+                        onFavorites = { nav.navigate(FavoritesRoute) },
+                        onPlaylist = { nav.navigate(PlaylistRoute(it)) },
+                        onBack = nav::popBackStack,
                     )
                 }
                 composable<ArtistRoute> {
@@ -136,10 +146,13 @@ fun MainScaffold() {
                         onArtist = { nav.navigate(ArtistRoute(it)) }, onAlbum = { nav.navigate(AlbumRoute(it)) },
                     )
                 }
-                composable<PodcastsRoute> { PodcastsScreen(onPodcast = { nav.navigate(PodcastRoute(it)) }) }
-                composable<PodcastRoute> {
-                    PodcastDetailScreen(feedUrl = it.toRoute<PodcastRoute>().feedUrl, player = controller, onBack = nav::popBackStack)
+                composable<PodcastsRoute> {
+                    PodcastsScreen(onPodcast = { nav.navigate(PodcastRoute(it)) }, onHistory = { nav.navigate(PodcastHistoryRoute) })
                 }
+                composable<PodcastRoute> {
+                    PodcastDetailScreen(feedUrl = it.toRoute<PodcastRoute>().feedUrl, onBack = nav::popBackStack)
+                }
+                composable<PodcastHistoryRoute> { PodcastHistoryScreen(onBack = nav::popBackStack) }
                 composable<RadioRoute> { RadioScreen(player = controller) }
                 composable<MeRoute> {
                     MeScreen(
@@ -157,5 +170,7 @@ fun MainScaffold() {
         }
     }
 
-    if (nowPlayingOpen) NowPlayingSheet(player, playerState, onDismiss = { nowPlayingOpen = false })
+    if (nowPlayingOpen) {
+        NowPlayingSheet(player, playerState, onDismiss = { nowPlayingOpen = false }, itemMenu = { addToPlaylistMenu(addToPlaylist, it) })
+    }
 }

@@ -51,9 +51,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.musicstream.core.playback.api.MediaKind
 import dev.musicstream.core.playback.api.PlayerState
+import dev.musicstream.core.playback.api.QueueItem
 import dev.musicstream.core.playback.api.RepeatMode
 import dev.musicstream.core.ui.R as UiR
 import dev.musicstream.core.ui.component.Artwork
+import dev.musicstream.core.ui.component.MenuAction
+import dev.musicstream.core.ui.component.OverflowMenu
 import dev.musicstream.core.ui.component.formatDuration
 
 /** Compact player shown above the bottom navigation. */
@@ -101,10 +104,18 @@ private fun PlayPauseButton(state: PlayerState, onToggle: () -> Unit) {
     }
 }
 
-/** Full-screen "now playing" sheet with seek bar and queue. */
+/**
+ * Full-screen "now playing" sheet with seek bar and queue. [itemMenu] lets
+ * other features (e.g. playlists) add overflow entries for the current item.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NowPlayingSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () -> Unit) {
+fun NowPlayingSheet(
+    vm: PlayerViewModel,
+    state: PlayerState,
+    onDismiss: () -> Unit,
+    itemMenu: @Composable (QueueItem) -> List<MenuAction> = { emptyList() },
+) {
     val item = state.current ?: return
     var showQueue by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -120,6 +131,7 @@ fun NowPlayingSheet(vm: PlayerViewModel, state: PlayerState, onDismiss: () -> Un
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.KeyboardArrowDown, stringResource(UiR.string.back)) }
                 Text(stringResource(R.string.now_playing), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 IconButton(onClick = { showQueue = true }) { Icon(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.queue)) }
+                OverflowMenu(itemMenu(item))
             }
             Artwork(
                 item.artworkUri,

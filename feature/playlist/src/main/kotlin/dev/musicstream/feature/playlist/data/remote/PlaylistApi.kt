@@ -9,11 +9,13 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /** Authenticated home-server playlist API (base URL = [dev.musicstream.core.network.ServerUrls.BASE_URL]). */
 interface PlaylistApi {
+    /** With [containsTrack], each summary also says whether it holds that track. */
     @GET("api/v1/playlists")
-    suspend fun playlists(): PlaylistListDto
+    suspend fun playlists(@Query("containsTrack") containsTrack: Long? = null): PlaylistListDto
 
     @POST("api/v1/playlists")
     suspend fun createPlaylist(@Body body: PlaylistRequest): PlaylistDto
@@ -32,12 +34,16 @@ interface PlaylistApi {
 
     @POST("api/v1/playlists/{id}/tracks")
     suspend fun appendPlaylistTracks(@Path("id") id: Long, @Body body: TrackIdsRequest): PlaylistDto
+
+    /** Removes every occurrence of the track. */
+    @DELETE("api/v1/playlists/{id}/tracks/{trackId}")
+    suspend fun removePlaylistTrack(@Path("id") id: Long, @Path("trackId") trackId: Long): PlaylistDto
 }
 
 // Wire format of the Go server: docs/API.md (handlers in backend/internal/feature/*/presentation/).
 
 @Serializable
-data class PlaylistSummaryDto(val id: Long, val name: String, val trackCount: Int = 0)
+data class PlaylistSummaryDto(val id: Long, val name: String, val trackCount: Int = 0, val containsTrack: Boolean? = null)
 
 @Serializable
 data class PlaylistListDto(val items: List<PlaylistSummaryDto> = emptyList())

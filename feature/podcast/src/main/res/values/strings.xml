@@ -6,11 +6,23 @@
     <string name="podcast_subscribe">訂閱</string>
     <string name="podcast_subscribed">已訂閱</string>
     <string name="podcast_unsubscribe">取消訂閱</string>
+    <string name="podcast_unsubscribe_confirm">要取消訂閱「%1$s」嗎？收聽紀錄會保留。</string>
     <string name="podcast_add_rss">用 RSS 網址訂閱</string>
     <string name="podcast_rss_url">RSS 網址</string>
     <string name="podcast_refresh">檢查新集數</string>
     <string name="podcast_no_episodes">沒有集數</string>
     <string name="podcast_played">已聽完</string>
+    <string name="podcast_in_progress">聽到一半</string>
+    <string name="podcast_mark_played">標記為已聽完</string>
+    <string name="podcast_mark_unplayed">標記為未聽完</string>
+
+    <!-- Listening history -->
+    <string name="podcast_history">收聽紀錄</string>
+    <string name="podcast_history_empty">還沒有收聽紀錄。播放任何一集都會記在這裡，包括還沒訂閱的節目。</string>
+    <string name="podcast_remove_from_history">從紀錄移除</string>
+    <string name="podcast_history_filter_all">全部</string>
+    <string name="podcast_history_filter_unfinished">未聽完</string>
+    <string name="podcast_history_filter_finished">已聽完</string>
     <string name="podcast_remaining">剩 %1$s</string>
     <string name="podcast_works_offline">Podcast 直接從節目來源播放，電腦關機也能聽。</string>
 </resources>
