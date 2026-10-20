@@ -5,6 +5,7 @@ import dev.musicstream.feature.library.data.remote.LibraryApi
 import dev.musicstream.feature.library.data.remote.toDomain
 import dev.musicstream.feature.library.domain.model.AlbumDetail
 import dev.musicstream.feature.library.domain.model.ArtistDetail
+import dev.musicstream.feature.library.domain.model.CategoryFilter
 import dev.musicstream.feature.library.domain.model.SearchResults
 import dev.musicstream.feature.library.domain.model.TrackQuery
 import dev.musicstream.feature.library.domain.repository.LibraryRepository
@@ -19,16 +20,21 @@ class LibraryRepositoryImpl @Inject constructor(private val api: LibraryApi) : L
     override val favoriteChanges: SharedFlow<Pair<Long, Boolean>> = _favoriteChanges
 
     override suspend fun tracks(query: TrackQuery, offset: Int, limit: Int) = apiCall {
-        api.tracks(query.search, query.artistId, query.albumId, query.sort.apiValue, limit, offset).toDomain { it.toDomain() }
+        api.tracks(
+            query.search, query.artistId, query.albumId, query.category.type, query.category.region,
+            query.sort.apiValue, limit, offset,
+        ).toDomain { it.toDomain() }
     }
 
-    override suspend fun artists(search: String?, offset: Int, limit: Int) = apiCall {
-        api.artists(search, limit, offset).toDomain { it.toDomain() }
+    override suspend fun artists(search: String?, category: CategoryFilter, offset: Int, limit: Int) = apiCall {
+        api.artists(search, category.type, category.region, limit, offset).toDomain { it.toDomain() }
     }
 
-    override suspend fun albums(artistId: String?, search: String?, offset: Int, limit: Int) = apiCall {
-        api.albums(artistId, search, limit, offset).toDomain { it.toDomain() }
+    override suspend fun albums(artistId: String?, search: String?, category: CategoryFilter, offset: Int, limit: Int) = apiCall {
+        api.albums(artistId, search, category.type, category.region, limit, offset).toDomain { it.toDomain() }
     }
+
+    override suspend fun categories() = apiCall { api.categories().categories.map { it.toDomain() } }
 
     override suspend fun artist(id: String) = apiCall {
         api.artist(id).let { ArtistDetail(it.artist.toDomain(), it.albums.map { a -> a.toDomain() }) }

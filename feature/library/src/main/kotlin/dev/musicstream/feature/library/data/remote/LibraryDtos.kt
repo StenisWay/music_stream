@@ -4,6 +4,7 @@ import dev.musicstream.core.common.Page
 import dev.musicstream.core.network.ServerUrls
 import dev.musicstream.feature.library.domain.model.Album
 import dev.musicstream.feature.library.domain.model.Artist
+import dev.musicstream.feature.library.domain.model.LibraryCategory
 import dev.musicstream.feature.library.domain.model.Track
 import kotlinx.serialization.Serializable
 
@@ -54,6 +55,12 @@ data class AlbumDto(
 )
 
 @Serializable
+data class CategoryDto(val type: String, val region: String, val trackCount: Int = 0, val artistCount: Int = 0)
+
+@Serializable
+data class CategoriesDto(val categories: List<CategoryDto> = emptyList())
+
+@Serializable
 data class PageDto<T>(val items: List<T> = emptyList(), val total: Int = 0, val limit: Int = 0, val offset: Int = 0)
 
 @Serializable
@@ -80,5 +87,7 @@ internal fun ArtistDto.toDomain() = Artist(id, name, trackCount, albumCount, Ser
 
 internal fun AlbumDto.toDomain() =
     Album(id, title, artist, artistId, year, trackCount, durationMs, ServerUrls.absolute(artworkUrl))
+
+internal fun CategoryDto.toDomain() = LibraryCategory(type, region, trackCount, artistCount)
 
 internal fun <D, T> PageDto<D>.toDomain(map: (D) -> T) = Page(items.map(map), total, offset)

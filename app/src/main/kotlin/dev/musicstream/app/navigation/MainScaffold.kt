@@ -36,6 +36,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.musicstream.app.R
+import dev.musicstream.feature.discover.presentation.DiscoverScreen
 import dev.musicstream.feature.library.presentation.actions.LocalTrackMenuExtensions
 import dev.musicstream.feature.library.presentation.actions.TrackActionsHost
 import dev.musicstream.feature.library.presentation.actions.TrackActionsViewModel
@@ -43,7 +44,6 @@ import dev.musicstream.feature.library.presentation.favorites.FavoritesScreen
 import dev.musicstream.feature.library.presentation.library.AlbumScreen
 import dev.musicstream.feature.library.presentation.library.ArtistScreen
 import dev.musicstream.feature.library.presentation.library.LibraryScreen
-import dev.musicstream.feature.library.presentation.search.SearchScreen
 import dev.musicstream.feature.player.MiniPlayer
 import dev.musicstream.feature.player.NowPlayingSheet
 import dev.musicstream.feature.player.PlaybackErrorEffect
@@ -140,12 +140,9 @@ fun MainScaffold() {
                 composable<AlbumRoute> {
                     AlbumScreen(id = it.toRoute<AlbumRoute>().id, trackActions = trackActions, player = controller, onBack = nav::popBackStack)
                 }
-                composable<SearchRoute> {
-                    SearchScreen(
-                        trackActions = trackActions, player = controller,
-                        onArtist = { nav.navigate(ArtistRoute(it)) }, onAlbum = { nav.navigate(AlbumRoute(it)) },
-                    )
-                }
+                // Search finds songs online and adds them to the library;
+                // the library tab filters what is already there.
+                composable<SearchRoute> { DiscoverScreen(snackbar) }
                 composable<PodcastsRoute> {
                     PodcastsScreen(onPodcast = { nav.navigate(PodcastRoute(it)) }, onHistory = { nav.navigate(PodcastHistoryRoute) })
                 }

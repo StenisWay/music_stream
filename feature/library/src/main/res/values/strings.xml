@@ -7,7 +7,11 @@
     <string name="album_count">%1$d 張專輯</string>
 
     <!-- Library -->
-    <string name="tab_songs">歌曲</string>
+    <string name="tab_songs">曲目</string>
+    <string name="category_all_types">全部類型</string>
+    <string name="category_all_regions">全部語區</string>
+    <!-- 類型/語區 chip: folder name and number of tracks, e.g. 華語 344 -->
+    <string name="category_chip">%1$s %2$d</string>
     <string name="tab_artists">歌手</string>
     <string name="tab_albums">專輯</string>
     <string name="sort_title">依歌名</string>
@@ -20,8 +24,6 @@
     <string name="my_favorites_hint">收藏的歌曲與自訂播放清單</string>
 
     <!-- Search -->
-    <string name="search_hint">搜尋歌曲、歌手、專輯</string>
-    <string name="search_no_results">找不到「%1$s」</string>
     <string name="songs">歌曲</string>
     <string name="artists">歌手</string>
 

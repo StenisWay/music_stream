@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -78,6 +80,7 @@ fun LibraryScreen(
     val filter by vm.filter.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         MyFavoritesCard(onMyFavorites)
+        CategoryChips(vm)
         PrimaryTabRow(selectedTabIndex = tab.ordinal) {
             listOf(R.string.tab_songs, R.string.tab_artists, R.string.tab_albums).forEachIndexed { i, label ->
                 Tab(selected = tab.ordinal == i, onClick = { vm.tab.value = LibraryTab.entries[i] }, text = { Text(stringResource(label)) })
@@ -110,6 +113,47 @@ private fun MyFavoritesCard(onClick: () -> Unit) {
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         )
     }
+}
+
+/**
+ * 類型 and 語區 chips, mirroring the server folders `library/<類型>/<語區>/`.
+ * Only folders that contain music are offered; hidden until loaded.
+ */
+@Composable
+private fun CategoryChips(vm: LibraryViewModel) {
+    val categories by vm.categories.collectAsStateWithLifecycle()
+    val selected by vm.category.collectAsStateWithLifecycle()
+    if (categories.isEmpty()) return
+    val types = categories.map { it.type }.distinct()
+    ChipRow {
+        FilterChip(selected = selected.type == null, onClick = { vm.selectType(null) }, label = { Text(stringResource(R.string.category_all_types)) })
+        types.forEach { type ->
+            val count = categories.filter { it.type == type }.sumOf { it.trackCount }
+            FilterChip(
+                selected = selected.type == type,
+                onClick = { vm.selectType(if (selected.type == type) null else type) },
+                label = { Text(stringResource(R.string.category_chip, type, count)) },
+            )
+        }
+    }
+    ChipRow {
+        FilterChip(selected = selected.region == null, onClick = { vm.selectRegion(null) }, label = { Text(stringResource(R.string.category_all_regions)) })
+        vm.regionsFor(selected.type).forEach { r ->
+            FilterChip(
+                selected = selected.region == r.region,
+                onClick = { vm.selectRegion(if (selected.region == r.region) null else r.region) },
+                label = { Text(stringResource(R.string.category_chip, r.region, r.trackCount)) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipRow(content: @Composable () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) { content() }
 }
 
 @Composable

@@ -72,5 +72,28 @@ data class TrackQuery(
     val search: String? = null,
     val artistId: String? = null,
     val albumId: String? = null,
+    val category: CategoryFilter = CategoryFilter.ALL,
     val sort: TrackSort = TrackSort.TITLE,
 )
+
+/**
+ * One folder of the home library's two classification levels,
+ * `library/<type>/<region>/`: type is 歌曲 (vocals) or 純音樂 (instrumental),
+ * region is 華語 / 日本 / 韓國 / 歐美 / 其他. The names come from the server
+ * exactly as they are on disk.
+ */
+data class LibraryCategory(
+    val type: String,
+    val region: String,
+    val trackCount: Int,
+    val artistCount: Int,
+)
+
+/** Narrows lists to a type and/or region; null means "all". */
+data class CategoryFilter(val type: String? = null, val region: String? = null) {
+    val isAll: Boolean get() = type == null && region == null
+
+    companion object {
+        val ALL = CategoryFilter()
+    }
+}

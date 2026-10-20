@@ -59,6 +59,7 @@ dependencies {
     implementation(project(":feature:podcast"))
     implementation(project(":feature:radio"))
     implementation(project(":feature:player"))
+    implementation(project(":feature:discover"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
