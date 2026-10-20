@@ -86,7 +86,6 @@ fun PlaylistScreen(
     vm: PlaylistViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val favorites by trackActions.favorites.collectAsStateWithLifecycle()
     var renaming by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val playlist = (state as? UiState.Success)?.data
@@ -106,11 +105,10 @@ fun PlaylistScreen(
                 }
                 if (s.data.tracks.isEmpty()) item { EmptyState(stringResource(UiR.string.empty_generic)) }
                 itemsIndexed(s.data.tracks, key = { i, t -> "$i-${t.id}" }) { i, t ->
-                    val fav = favorites[t.id] ?: t.favorite
                     TrackRow(
-                        t, fav,
+                        t,
                         onClick = { player.playTracks(s.data.tracks, i) },
-                        menu = trackMenu(trackActions, t, fav) + MenuAction(stringResource(R.string.remove_from_playlist)) { vm.remove(i) },
+                        menu = trackMenu(trackActions, t) + MenuAction(stringResource(R.string.remove_from_playlist)) { vm.remove(i) },
                     )
                 }
             }

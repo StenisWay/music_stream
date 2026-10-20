@@ -1,8 +1,6 @@
 package dev.musicstream.feature.library.data.remote
 
-import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -51,13 +49,4 @@ interface LibraryApi {
 
     @GET("api/v1/search")
     suspend fun search(@Query("q") query: String, @Query("limit") limit: Int = 20): SearchDto
-
-    @GET("api/v1/favorites")
-    suspend fun favorites(@Query("limit") limit: Int, @Query("offset") offset: Int): PageDto<TrackDto>
-
-    @PUT("api/v1/favorites/{trackId}")
-    suspend fun addFavorite(@Path("trackId") trackId: Long)
-
-    @DELETE("api/v1/favorites/{trackId}")
-    suspend fun removeFavorite(@Path("trackId") trackId: Long)
 }

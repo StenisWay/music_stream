@@ -20,7 +20,6 @@ data class Track(
     val streamUrl: String,
     val artworkUrl: String?,
     val playable: Boolean,
-    val favorite: Boolean,
 ) {
     /** Artist shown in lists: album artist wins for compilations. */
     val displayArtist: String get() = artist.ifBlank { albumArtist.ifBlank { UNKNOWN_ARTIST } }

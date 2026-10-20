@@ -16,16 +16,11 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryTabRow
@@ -35,9 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,13 +66,11 @@ fun LibraryScreen(
     player: PlayerController,
     onArtist: (String) -> Unit,
     onAlbum: (String) -> Unit,
-    onMyFavorites: () -> Unit,
     vm: LibraryViewModel = hiltViewModel(),
 ) {
     val tab by vm.tab.collectAsStateWithLifecycle()
     val filter by vm.filter.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        MyFavoritesCard(onMyFavorites)
         CategoryChips(vm)
         PrimaryTabRow(selectedTabIndex = tab.ordinal) {
             listOf(R.string.tab_songs, R.string.tab_artists, R.string.tab_albums).forEachIndexed { i, label ->
@@ -98,20 +89,6 @@ fun LibraryScreen(
             LibraryTab.ARTISTS -> ArtistsTab(vm.artists.collectAsLazyPagingItems(), onArtist)
             LibraryTab.ALBUMS -> AlbumsTab(vm.albums.collectAsLazyPagingItems(), onAlbum)
         }
-    }
-}
-
-/** Entry to the favourites / custom playlists hub, above the library tabs. */
-@Composable
-private fun MyFavoritesCard(onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.my_favorites), fontWeight = FontWeight.SemiBold) },
-            supportingContent = { Text(stringResource(R.string.my_favorites_hint)) },
-            leadingContent = { Icon(Icons.Default.Favorite, null, tint = MaterialTheme.colorScheme.primary) },
-            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        )
     }
 }
 
@@ -160,7 +137,6 @@ private fun ChipRow(content: @Composable () -> Unit) {
 private fun SongsTab(vm: LibraryViewModel, trackActions: TrackActionsViewModel, player: PlayerController) {
     val sort by vm.sort.collectAsStateWithLifecycle()
     val items = vm.tracks.collectAsLazyPagingItems()
-    val favorites by trackActions.favorites.collectAsStateWithLifecycle()
     val current by player.state.collectAsStateWithLifecycle()
     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(TrackSort.TITLE to R.string.sort_title, TrackSort.ARTIST to R.string.sort_artist, TrackSort.RECENTLY_ADDED to R.string.sort_recent)
@@ -169,12 +145,11 @@ private fun SongsTab(vm: LibraryViewModel, trackActions: TrackActionsViewModel, 
     PagedList(items) {
         items(items.itemCount, key = items.itemKey { it.id }) { i ->
             val track = items[i] ?: return@items
-            val fav = favorites[track.id] ?: track.favorite
             TrackRow(
-                track = track, favorite = fav,
+                track = track,
                 isCurrent = current.current?.mediaId == "music:${track.id}",
                 onClick = { player.playTracks(items.itemSnapshotList.items, i) },
-                menu = trackMenu(trackActions, track, fav),
+                menu = trackMenu(trackActions, track),
             )
         }
     }
@@ -219,7 +194,6 @@ fun ArtistScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val tracks = vm.tracks.collectAsLazyPagingItems()
-    val favorites by trackActions.favorites.collectAsStateWithLifecycle()
     val title = (state as? UiState.Success)?.data?.artist?.name.orEmpty()
     DetailScaffold(title.ifUnknown(), onBack) {
         when (val s = state) {
@@ -248,8 +222,7 @@ fun ArtistScreen(
                 item { SectionHeader(stringResource(R.string.all_songs)) }
                 items(tracks.itemCount, key = tracks.itemKey { it.id }) { i ->
                     val track = tracks[i] ?: return@items
-                    val fav = favorites[track.id] ?: track.favorite
-                    TrackRow(track, fav, onClick = { player.playTracks(tracks.itemSnapshotList.items, i) }, menu = trackMenu(trackActions, track, fav))
+                    TrackRow(track, onClick = { player.playTracks(tracks.itemSnapshotList.items, i) }, menu = trackMenu(trackActions, track))
                 }
             }
         }
@@ -265,7 +238,6 @@ fun AlbumScreen(
     vm: AlbumViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val favorites by trackActions.favorites.collectAsStateWithLifecycle()
     val title = (state as? UiState.Success)?.data?.album?.title.orEmpty()
     DetailScaffold(title, onBack) {
         when (val s = state) {
@@ -283,11 +255,10 @@ fun AlbumScreen(
                     }
                     item { PlayButtons({ player.playTracks(tracks, 0) }, { player.playTracks(tracks, 0, shuffle = true) }) }
                     itemsIndexed(tracks, key = { _, t -> t.id }) { i, track ->
-                        val fav = favorites[track.id] ?: track.favorite
                         TrackRow(
-                            track, fav,
+                            track,
                             onClick = { player.playTracks(tracks, i) },
-                            menu = trackMenu(trackActions, track, fav),
+                            menu = trackMenu(trackActions, track),
                             leading = {
                                 Text(
                                     if (track.trackNo > 0) track.trackNo.toString() else "•",

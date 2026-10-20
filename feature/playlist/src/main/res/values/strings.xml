@@ -7,11 +7,7 @@
     <string name="playlist_name">清單名稱</string>
     <string name="choose_playlist">加入播放清單</string>
 
-    <!-- Collections hub (我的最愛) -->
-    <string name="collections_title">我的最愛</string>
-
     <!-- Me -->
-    <string name="me_favorites">收藏的歌曲</string>
     <string name="me_settings">設定</string>
     <string name="playlists">播放清單</string>
     <string name="no_playlists">還沒有播放清單。</string>

@@ -50,15 +50,3 @@ class SearchLibraryUseCase @Inject constructor(private val library: LibraryRepos
         return runCatchingApp { library.search(q) }
     }
 }
-
-class ToggleFavoriteUseCase @Inject constructor(private val library: LibraryRepository) {
-    suspend operator fun invoke(track: Track): Result<Boolean> = runCatchingApp {
-        val target = !track.favorite
-        library.setFavorite(track.id, target)
-        target
-    }
-}
-
-class GetFavoritesPageUseCase @Inject constructor(private val library: LibraryRepository) {
-    suspend operator fun invoke(offset: Int, limit: Int): Page<Track> = library.favorites(offset, limit)
-}

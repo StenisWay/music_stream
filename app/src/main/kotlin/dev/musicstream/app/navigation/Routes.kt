@@ -15,6 +15,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class PlaylistRoute(val id: Long)
 @Serializable data class PodcastRoute(val feedUrl: String)
 @Serializable data object PodcastHistoryRoute
-@Serializable data object CollectionsRoute
-@Serializable data object FavoritesRoute
 @Serializable data object SettingsRoute

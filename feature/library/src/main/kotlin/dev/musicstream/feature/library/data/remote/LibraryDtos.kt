@@ -30,7 +30,6 @@ data class TrackDto(
     val streamUrl: String,
     val artworkUrl: String? = null,
     val playable: Boolean = true,
-    val favorite: Boolean = false,
 )
 
 @Serializable
@@ -80,7 +79,7 @@ fun TrackDto.toDomain() = Track(
     id = id, title = title, artist = artist, album = album, albumArtist = albumArtist,
     artistId = artistId, albumId = albumId, trackNo = trackNo, year = year, durationMs = durationMs,
     format = format, streamUrl = ServerUrls.absolute(streamUrl)!!, artworkUrl = ServerUrls.absolute(artworkUrl),
-    playable = playable, favorite = favorite,
+    playable = playable,
 )
 
 internal fun ArtistDto.toDomain() = Artist(id, name, trackCount, albumCount, ServerUrls.absolute(artworkUrl))

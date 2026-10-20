@@ -19,14 +19,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.musicstream.feature.playlist.R
-import dev.musicstream.feature.playlist.presentation.collections.FavoritesEntry
 import dev.musicstream.feature.playlist.presentation.collections.NewPlaylistDialog
 import dev.musicstream.feature.playlist.presentation.collections.PlaylistsViewModel
 import dev.musicstream.feature.playlist.presentation.collections.playlistsSection
 
 @Composable
 fun MeScreen(
-    onFavorites: () -> Unit,
     onPlaylist: (Long) -> Unit,
     onSettings: () -> Unit,
     vm: PlaylistsViewModel = hiltViewModel(),
@@ -36,7 +34,6 @@ fun MeScreen(
     LaunchedEffect(Unit) { vm.load() } // refresh when returning to the tab
 
     LazyColumn(Modifier.fillMaxSize()) {
-        item { FavoritesEntry(onFavorites) }
         item {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.me_settings)) },

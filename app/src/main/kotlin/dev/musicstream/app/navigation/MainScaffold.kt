@@ -40,7 +40,6 @@ import dev.musicstream.feature.discover.presentation.DiscoverScreen
 import dev.musicstream.feature.library.presentation.actions.LocalTrackMenuExtensions
 import dev.musicstream.feature.library.presentation.actions.TrackActionsHost
 import dev.musicstream.feature.library.presentation.actions.TrackActionsViewModel
-import dev.musicstream.feature.library.presentation.favorites.FavoritesScreen
 import dev.musicstream.feature.library.presentation.library.AlbumScreen
 import dev.musicstream.feature.library.presentation.library.ArtistScreen
 import dev.musicstream.feature.library.presentation.library.LibraryScreen
@@ -48,7 +47,6 @@ import dev.musicstream.feature.player.MiniPlayer
 import dev.musicstream.feature.player.NowPlayingSheet
 import dev.musicstream.feature.player.PlaybackErrorEffect
 import dev.musicstream.feature.player.PlayerViewModel
-import dev.musicstream.feature.playlist.presentation.collections.CollectionsScreen
 import dev.musicstream.feature.playlist.presentation.detail.PlaylistScreen
 import dev.musicstream.feature.playlist.presentation.me.MeScreen
 import dev.musicstream.feature.playlist.presentation.picker.AddToPlaylistHost
@@ -121,14 +119,6 @@ fun MainScaffold() {
                     LibraryScreen(
                         trackActions = trackActions, player = controller,
                         onArtist = { nav.navigate(ArtistRoute(it)) }, onAlbum = { nav.navigate(AlbumRoute(it)) },
-                        onMyFavorites = { nav.navigate(CollectionsRoute) },
-                    )
-                }
-                composable<CollectionsRoute> {
-                    CollectionsScreen(
-                        onFavorites = { nav.navigate(FavoritesRoute) },
-                        onPlaylist = { nav.navigate(PlaylistRoute(it)) },
-                        onBack = nav::popBackStack,
                     )
                 }
                 composable<ArtistRoute> {
@@ -153,12 +143,10 @@ fun MainScaffold() {
                 composable<RadioRoute> { RadioScreen(player = controller) }
                 composable<MeRoute> {
                     MeScreen(
-                        onFavorites = { nav.navigate(FavoritesRoute) },
                         onPlaylist = { nav.navigate(PlaylistRoute(it)) },
                         onSettings = { nav.navigate(SettingsRoute) },
                     )
                 }
-                composable<FavoritesRoute> { FavoritesScreen(trackActions, controller, onBack = nav::popBackStack) }
                 composable<PlaylistRoute> {
                     PlaylistScreen(id = it.toRoute<PlaylistRoute>().id, trackActions = trackActions, player = controller, onBack = nav::popBackStack)
                 }

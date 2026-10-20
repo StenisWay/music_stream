@@ -10,7 +10,6 @@ import dev.musicstream.feature.library.domain.model.LibraryCategory
 import dev.musicstream.feature.library.domain.model.SearchResults
 import dev.musicstream.feature.library.domain.model.Track
 import dev.musicstream.feature.library.domain.model.TrackQuery
-import kotlinx.coroutines.flow.Flow
 
 /** Home-server music catalogue. All failures are [dev.musicstream.core.common.AppError]. */
 interface LibraryRepository {
@@ -21,8 +20,4 @@ interface LibraryRepository {
     suspend fun artist(id: String): ArtistDetail
     suspend fun album(id: String): AlbumDetail
     suspend fun search(query: String): SearchResults
-    suspend fun setFavorite(trackId: Long, favorite: Boolean)
-    suspend fun favorites(offset: Int, limit: Int): Page<Track>
-    /** Emits track ids whose favorite flag changed locally, so lists can update. */
-    val favoriteChanges: Flow<Pair<Long, Boolean>>
 }

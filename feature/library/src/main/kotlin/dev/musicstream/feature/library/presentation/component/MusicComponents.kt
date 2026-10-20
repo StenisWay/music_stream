@@ -6,13 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +32,7 @@ import dev.musicstream.feature.library.domain.model.Track
 import dev.musicstream.feature.library.domain.usecase.toQueueItem
 
 // Music widgets shared by every screen that lists library tracks
-// (library, search, favorites, playlists).
+// (library, search, playlists).
 
 /** Plays [tracks] starting at [index], skipping formats the server cannot stream. */
 fun PlayerController.playTracks(tracks: List<Track>, index: Int, shuffle: Boolean = false) {
@@ -53,7 +50,6 @@ fun PlayerController.playTracks(tracks: List<Track>, index: Int, shuffle: Boolea
 @Composable
 fun TrackRow(
     track: Track,
-    favorite: Boolean,
     onClick: () -> Unit,
     menu: List<MenuAction>,
     modifier: Modifier = Modifier,
@@ -87,9 +83,6 @@ fun TrackRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        if (favorite) {
-            Icon(Icons.Default.Favorite, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         }
         if (track.durationMs > 0) {
             Text(
