@@ -5,8 +5,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -25,17 +27,30 @@ type Config struct {
 	Library   Library   `yaml:"library"`
 	DataDir   string    `yaml:"dataDir"`
 	Auth      Auth      `yaml:"auth"`
-	Endpoint  Endpoint  `yaml:"endpoint"`
 	Transcode Transcode `yaml:"transcode"`
+	Discover  Discover  `yaml:"discover"`
 	Log       Log       `yaml:"log"`
 }
 
 type Server struct {
-	Listen     string  `yaml:"listen"`
-	PublicPort int     `yaml:"publicPort"` // port forwarded on the router
-	TLS        TLSMode `yaml:"tls"`
-	CertFile   string  `yaml:"certFile"`
-	KeyFile    string  `yaml:"keyFile"`
+	Listen   string  `yaml:"listen"`
+	TLS      TLSMode `yaml:"tls"`
+	CertFile string  `yaml:"certFile"`
+	KeyFile  string  `yaml:"keyFile"`
+}
+
+// Port is the TCP port of Listen, put in the connection code. It is 0 when
+// Listen has no valid port (rejected by Validate).
+func (s Server) Port() int {
+	_, p, err := net.SplitHostPort(s.Listen)
+	if err != nil {
+		return 0
+	}
+	n, err := strconv.Atoi(p)
+	if err != nil || n < 1 || n > 65535 {
+		return 0
+	}
+	return n
 }
 
 type Library struct {
@@ -57,20 +72,14 @@ type Auth struct {
 	RefreshTTL   time.Duration `yaml:"refreshTTL"`
 }
 
-type Endpoint struct {
-	Enabled       bool          `yaml:"enabled"`
-	ServerID      string        `yaml:"serverId"`
-	CheckInterval time.Duration `yaml:"checkInterval"`
-	Firebase      Firebase      `yaml:"firebase"`
-}
-
-type Firebase struct {
-	DatabaseURL     string `yaml:"databaseUrl"`
-	CredentialsFile string `yaml:"credentialsFile"`
-}
-
 type Transcode struct {
 	FFmpeg string `yaml:"ffmpeg"`
+}
+
+// Discover configures searching and downloading songs from online sources.
+// It needs yt-dlp (plus ffmpeg from Transcode) and an inbox.
+type Discover struct {
+	YtDlp string `yaml:"ytdlp"`
 }
 
 type Log struct {
@@ -81,15 +90,15 @@ type Log struct {
 // Default returns the configuration used for omitted fields.
 func Default() Config {
 	return Config{
-		Server: Server{Listen: ":8443", PublicPort: 8443, TLS: TLSSelfSigned},
+		Server: Server{Listen: ":8443", TLS: TLSSelfSigned},
 		Library: Library{
 			Root: "../music_data/library", Watch: true, RescanInterval: 6 * time.Hour,
 			Inbox: "../music_data/inbox", IngestMinAge: 10 * time.Second,
 		},
 		DataDir:   "./data",
 		Auth:      Auth{Username: "admin", AccessTTL: time.Hour, RefreshTTL: 90 * 24 * time.Hour},
-		Endpoint:  Endpoint{CheckInterval: 5 * time.Minute},
 		Transcode: Transcode{FFmpeg: "ffmpeg"},
+		Discover:  Discover{YtDlp: "yt-dlp"},
 		Log:       Log{Level: "info", Format: "text"},
 	}
 }
@@ -118,6 +127,9 @@ func Load(path string) (Config, error) {
 	if v := os.Getenv("MUSICSTREAM_LIBRARY_ROOT"); v != "" {
 		cfg.Library.Root = v
 	}
+	if v := os.Getenv("MUSICSTREAM_LISTEN"); v != "" {
+		cfg.Server.Listen = v
+	}
 	resolve := func(p *string) {
 		if *p != "" && !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
@@ -128,7 +140,6 @@ func Load(path string) (Config, error) {
 	resolve(&cfg.DataDir)
 	resolve(&cfg.Server.CertFile)
 	resolve(&cfg.Server.KeyFile)
-	resolve(&cfg.Endpoint.Firebase.CredentialsFile)
 	return cfg, cfg.Validate()
 }
 
@@ -152,11 +163,8 @@ func (c Config) Validate() error {
 	default:
 		errs = append(errs, fmt.Errorf("server.tls must be self-signed, files or off (got %q)", c.Server.TLS))
 	}
-	if c.Endpoint.Enabled && c.Endpoint.Firebase.DatabaseURL != "" && c.Endpoint.Firebase.CredentialsFile == "" {
-		errs = append(errs, errors.New("endpoint.firebase.credentialsFile is required when databaseUrl is set"))
-	}
-	if c.Endpoint.Enabled && c.Server.TLS == TLSOff {
-		errs = append(errs, errors.New("server.tls: off cannot be combined with endpoint.enabled: the server would be reachable from the internet without encryption"))
+	if c.Server.Port() == 0 {
+		errs = append(errs, fmt.Errorf("server.listen must include a port, e.g. \":8443\" (got %q)", c.Server.Listen))
 	}
 	if c.Auth.AccessTTL <= 0 || c.Auth.RefreshTTL <= 0 {
 		errs = append(errs, errors.New("auth TTLs must be positive"))

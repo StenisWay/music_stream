@@ -19,6 +19,7 @@ var categoryDirs = map[string]struct{}{
 var genreDirs = map[string]struct{}{
 	"中文": {}, "日文": {}, "英文": {}, "英文歌": {}, "樂曲": {}, "動畫": {}, "古典": {},
 	"純音樂": {}, "純音樂2": {}, "纯音乐": {},
+	TypeSong: {}, RegionChinese: {}, RegionJapanese: {}, RegionKorean: {}, RegionWestern: {}, RegionOther: {},
 }
 
 // FolderHints are artist/album guesses derived from a file's directory chain.

@@ -30,6 +30,7 @@ func (h *Handler) Register(mux *http.ServeMux, authed httpx.Wrap) {
 	mux.Handle("GET /api/v1/albums", authed(h.listAlbums))
 	mux.Handle("GET /api/v1/albums/{id}", authed(h.getAlbum))
 	mux.Handle("GET /api/v1/search", authed(h.search))
+	mux.Handle("GET /api/v1/categories", authed(h.categories))
 	mux.Handle("GET /api/v1/library/duplicates", authed(h.duplicates))
 	mux.Handle("POST /api/v1/library/scan", authed(h.triggerScan))
 }
@@ -44,6 +45,7 @@ func (h *Handler) listTracks(w http.ResponseWriter, r *http.Request) {
 		Query:    q.Get("q"),
 		ArtistID: domain.ArtistID(q.Get("artistId")),
 		AlbumID:  domain.AlbumID(q.Get("albumId")),
+		Category: categoryFilter(r),
 		Sort:     domain.TrackSort(q.Get("sort")),
 	}
 	res, err := h.Catalog.ListTracks(r.Context(), f, httpx.PageFromQuery(r))
@@ -111,7 +113,7 @@ func (h *Handler) patchTrack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listArtists(w http.ResponseWriter, r *http.Request) {
-	res, err := h.Catalog.ListArtists(r.Context(), r.URL.Query().Get("q"), httpx.PageFromQuery(r))
+	res, err := h.Catalog.ListArtists(r.Context(), r.URL.Query().Get("q"), categoryFilter(r), httpx.PageFromQuery(r))
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -126,7 +128,7 @@ func (h *Handler) getArtist(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	albums, err := h.Catalog.ListAlbums(r.Context(), id, "", shared.Page{Limit: shared.MaxPageSize})
+	albums, err := h.Catalog.ListAlbums(r.Context(), id, "", domain.CategoryFilter{}, shared.Page{Limit: shared.MaxPageSize})
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -136,7 +138,7 @@ func (h *Handler) getArtist(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) listAlbums(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	res, err := h.Catalog.ListAlbums(r.Context(), domain.ArtistID(q.Get("artistId")), q.Get("q"), httpx.PageFromQuery(r))
+	res, err := h.Catalog.ListAlbums(r.Context(), domain.ArtistID(q.Get("artistId")), q.Get("q"), categoryFilter(r), httpx.PageFromQuery(r))
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -179,6 +181,25 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		albums = append(albums, ToAlbumDTO(x))
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"tracks": tracks, "artists": artists, "albums": albums})
+}
+
+// categoryFilter reads the optional ?type=歌曲&region=華語 parameters.
+func categoryFilter(r *http.Request) domain.CategoryFilter {
+	q := r.URL.Query()
+	return domain.CategoryFilter{Type: q.Get("type"), Region: q.Get("region")}
+}
+
+func (h *Handler) categories(w http.ResponseWriter, r *http.Request) {
+	counts, err := h.Catalog.Categories(r.Context())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	out := make([]CategoryDTO, 0, len(counts))
+	for _, c := range counts {
+		out = append(out, CategoryDTO{Type: c.Category.Type, Region: c.Category.Region, TrackCount: c.TrackCount, ArtistCount: c.ArtistCount})
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"categories": out})
 }
 
 func (h *Handler) duplicates(w http.ResponseWriter, r *http.Request) {

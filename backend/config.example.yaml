@@ -1,7 +1,6 @@
 # Copy to config.yaml and adjust. Relative paths are resolved against this file.
 server:
-  listen: ":8443"        # local address to bind
-  publicPort: 8443       # external port forwarded on the router (usually the same)
+  listen: ":8443"        # local address to bind; reach it from outside through the VPN (no port forwarding)
   tls: self-signed       # self-signed (recommended) | files | off
   # certFile: ./tls/fullchain.pem
   # keyFile: ./tls/privkey.pem
@@ -23,15 +22,11 @@ auth:
   accessTTL: 1h
   refreshTTL: 2160h              # 90 days
 
-endpoint:
-  enabled: false                 # publish public/LAN address for the app
-  checkInterval: 5m
-  firebase:
-    databaseUrl: ""              # https://<project>-default-rtdb.<region>.firebasedatabase.app
-    credentialsFile: ""          # service-account JSON (keep it out of git)
-
 transcode:
   ffmpeg: ffmpeg                 # enables WMA -> MP3 streaming when installed
+
+discover:
+  ytdlp: yt-dlp                  # search/download songs from YouTube & SoundCloud into the inbox (needs ffmpeg + inbox)
 
 log:
   level: info

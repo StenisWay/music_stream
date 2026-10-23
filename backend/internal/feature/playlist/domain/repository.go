@@ -7,7 +7,7 @@ import (
 	"musicstream/internal/shared"
 )
 
-// Repository persists playlists and favorites.
+// Repository persists playlists.
 type Repository interface {
 	List(ctx context.Context, owner shared.UserID) ([]PlaylistSummary, error)
 	Get(ctx context.Context, owner shared.UserID, id PlaylistID) (Playlist, error)
@@ -15,9 +15,6 @@ type Repository interface {
 	Rename(ctx context.Context, owner shared.UserID, id PlaylistID, name string) error
 	SetTracks(ctx context.Context, owner shared.UserID, id PlaylistID, tracks []library.TrackID) error
 	Delete(ctx context.Context, owner shared.UserID, id PlaylistID) error
-
-	AddFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error
-	RemoveFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error
-	ListFavorites(ctx context.Context, owner shared.UserID, p shared.Page) (shared.PageResult[library.TrackID], error)
-	FavoriteIDs(ctx context.Context, owner shared.UserID, among []library.TrackID) (map[library.TrackID]bool, error)
+	// Containing returns the ids of the owner's playlists that include track.
+	Containing(ctx context.Context, owner shared.UserID, track library.TrackID) (map[PlaylistID]bool, error)
 }

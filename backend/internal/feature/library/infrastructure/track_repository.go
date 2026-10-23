@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"musicstream/internal/feature/library/domain"
 	"musicstream/internal/platform/sqlitex"
@@ -136,10 +137,27 @@ func trackWhere(f domain.TrackFilter) (string, []any) {
 		conds = append(conds, "album_id = ?")
 		args = append(args, string(f.AlbumID))
 	}
+	conds, args = categoryCond(f.Category, conds, args)
 	if len(conds) == 0 {
 		return "", nil
 	}
 	return " WHERE " + strings.Join(conds, " AND "), args
+}
+
+// categoryCond matches tracks below the filter's <Type>/<Region>/ folders.
+// substr() instead of LIKE: the values are exact folder names and LIKE
+// would need escaping.
+func categoryCond(f domain.CategoryFilter, conds []string, args []any) ([]string, []any) {
+	prefixes := f.PathPrefixes()
+	if len(prefixes) == 0 {
+		return conds, args
+	}
+	or := make([]string, len(prefixes))
+	for i, p := range prefixes {
+		or[i] = "substr(path, 1, ?) = ?"
+		args = append(args, utf8.RuneCountInString(p), p)
+	}
+	return append(conds, "("+strings.Join(or, " OR ")+")"), args
 }
 
 func (s *TrackRepository) List(ctx context.Context, f domain.TrackFilter, p shared.Page) (shared.PageResult[domain.Track], error) {
@@ -234,11 +252,17 @@ func scanArtist(r sqlitex.RowScanner) (domain.Artist, error) {
 	return a, err
 }
 
-func (s *TrackRepository) ListArtists(ctx context.Context, query string, p shared.Page) (shared.PageResult[domain.Artist], error) {
-	where, args := "", []any{}
+func (s *TrackRepository) ListArtists(ctx context.Context, query string, cat domain.CategoryFilter, p shared.Page) (shared.PageResult[domain.Artist], error) {
+	var conds []string
+	var args []any
 	if query != "" {
-		where = ` WHERE lower(grouping_artist) LIKE ? ESCAPE '\'`
+		conds = append(conds, `lower(grouping_artist) LIKE ? ESCAPE '\'`)
 		args = append(args, sqlitex.LikePattern(query))
+	}
+	conds, args = categoryCond(cat, conds, args)
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT artist_id) FROM tracks`+where, args...).Scan(&total); err != nil {
@@ -278,7 +302,7 @@ func scanAlbum(r sqlitex.RowScanner) (domain.Album, error) {
 	return a, err
 }
 
-func (s *TrackRepository) ListAlbums(ctx context.Context, artist domain.ArtistID, query string, p shared.Page) (shared.PageResult[domain.Album], error) {
+func (s *TrackRepository) ListAlbums(ctx context.Context, artist domain.ArtistID, query string, cat domain.CategoryFilter, p shared.Page) (shared.PageResult[domain.Album], error) {
 	conds, args := []string{"album_id != ''"}, []any{}
 	if artist != "" {
 		conds = append(conds, "artist_id = ?")
@@ -288,6 +312,7 @@ func (s *TrackRepository) ListAlbums(ctx context.Context, artist domain.ArtistID
 		conds = append(conds, `lower(album) LIKE ? ESCAPE '\'`)
 		args = append(args, sqlitex.LikePattern(query))
 	}
+	conds, args = categoryCond(cat, conds, args)
 	where := " WHERE " + strings.Join(conds, " AND ")
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT album_id) FROM tracks`+where, args...).Scan(&total); err != nil {
@@ -308,6 +333,25 @@ func (s *TrackRepository) ListAlbums(ctx context.Context, artist domain.ArtistID
 		items = append(items, a)
 	}
 	return shared.PageResult[domain.Album]{Items: items, Total: total, Page: p}, rows.Err()
+}
+
+func (s *TrackRepository) CategoryCounts(ctx context.Context) ([]domain.CategoryCount, error) {
+	var out []domain.CategoryCount
+	for _, t := range domain.Types {
+		for _, r := range domain.Regions {
+			where, args := categoryCond(domain.CategoryFilter{Type: t, Region: r}, nil, nil)
+			c := domain.CategoryCount{Category: trackmeta.Category{Type: t, Region: r}}
+			err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), COUNT(DISTINCT artist_id) FROM tracks WHERE `+where[0], args...).
+				Scan(&c.TrackCount, &c.ArtistCount)
+			if err != nil {
+				return nil, err
+			}
+			if c.TrackCount > 0 {
+				out = append(out, c)
+			}
+		}
+	}
+	return out, nil
 }
 
 func (s *TrackRepository) GetAlbum(ctx context.Context, id domain.AlbumID) (domain.Album, error) {

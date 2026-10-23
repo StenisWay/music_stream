@@ -151,63 +151,21 @@ func (s *PlaylistRepository) Delete(ctx context.Context, owner shared.UserID, id
 	return nil
 }
 
-func (s *PlaylistRepository) AddFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error {
-	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO favorites (owner_id, track_id, created_at) VALUES (?, ?, ?)`,
-		owner, track, sqlitex.UnixNano(time.Now()))
-	return err
-}
-
-func (s *PlaylistRepository) RemoveFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM favorites WHERE owner_id = ? AND track_id = ?`, owner, track)
-	return err
-}
-
-// ListFavorites returns the favourite track ids, newest first. Resolving
-// them to tracks is the use case's job (via library.Repository), so this
-// store never depends on the library's table layout.
-func (s *PlaylistRepository) ListFavorites(ctx context.Context, owner shared.UserID, p shared.Page) (shared.PageResult[library.TrackID], error) {
-	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM favorites WHERE owner_id = ?`, owner).Scan(&total); err != nil {
-		return shared.PageResult[library.TrackID]{}, err
-	}
-	rows, err := s.db.QueryContext(ctx, `SELECT track_id FROM favorites
-		WHERE owner_id = ? ORDER BY created_at DESC, track_id DESC LIMIT ? OFFSET ?`, owner, p.Limit, p.Offset)
+func (s *PlaylistRepository) Containing(ctx context.Context, owner shared.UserID, track library.TrackID) (map[domain.PlaylistID]bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT p.id FROM playlists p
+		JOIN playlist_tracks pt ON pt.playlist_id = p.id
+		WHERE p.owner_id = ? AND pt.track_id = ?`, owner, track)
 	if err != nil {
-		return shared.PageResult[library.TrackID]{}, err
+		return nil, err
 	}
 	defer rows.Close()
-	var ids []library.TrackID
+	out := map[domain.PlaylistID]bool{}
 	for rows.Next() {
-		var id library.TrackID
+		var id domain.PlaylistID
 		if err := rows.Scan(&id); err != nil {
-			return shared.PageResult[library.TrackID]{}, err
-		}
-		ids = append(ids, id)
-	}
-	return shared.PageResult[library.TrackID]{Items: ids, Total: total, Page: p}, rows.Err()
-}
-
-func (s *PlaylistRepository) FavoriteIDs(ctx context.Context, owner shared.UserID, among []library.TrackID) (map[library.TrackID]bool, error) {
-	out := map[library.TrackID]bool{}
-	for start := 0; start < len(among); start += 500 {
-		chunk := among[start:min(start+500, len(among))]
-		args := []any{owner}
-		for _, id := range chunk {
-			args = append(args, id)
-		}
-		rows, err := s.db.QueryContext(ctx, `SELECT track_id FROM favorites WHERE owner_id = ? AND track_id IN (`+sqlitex.Placeholders(len(chunk))+`)`, args...)
-		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var id library.TrackID
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			out[id] = true
-		}
-		rows.Close()
+		out[id] = true
 	}
-	return out, nil
+	return out, rows.Err()
 }

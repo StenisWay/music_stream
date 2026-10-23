@@ -46,7 +46,7 @@ func seed(t *testing.T, tracks *libraryinfra.TrackRepository, items ...library.T
 	return out
 }
 
-func TestPlaylistsAndFavorites(t *testing.T) {
+func TestPlaylists(t *testing.T) {
 	db := openTest(t)
 	tracks := libraryinfra.NewTrackRepository(db)
 	ctx := context.Background()
@@ -69,19 +69,24 @@ func TestPlaylistsAndFavorites(t *testing.T) {
 		t.Fatalf("other user must not see playlist: %v", err)
 	}
 
-	// Deleting a track cascades out of playlists and favorites.
-	if err := repo.AddFavorite(ctx, u.ID, tr[0].ID); err != nil {
+	other, err := repo.Create(ctx, domain.Playlist{OwnerID: u.ID, Name: "other", TrackIDs: []library.TrackID{tr[0].ID}})
+	if err != nil {
 		t.Fatal(err)
 	}
+	in, err := repo.Containing(ctx, u.ID, tr[1].ID)
+	if err != nil || !in[p.ID] || in[other.ID] {
+		t.Fatalf("containing: %v %v", in, err)
+	}
+	if in, _ := repo.Containing(ctx, u.ID+1, tr[1].ID); len(in) != 0 {
+		t.Fatalf("other user must not see membership: %v", in)
+	}
+
+	// Deleting a track cascades out of playlists.
 	if err := tracks.Delete(ctx, []library.TrackID{tr[0].ID}); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = repo.Get(ctx, u.ID, p.ID)
 	if len(got.TrackIDs) != 2 {
 		t.Fatalf("cascade: %+v", got.TrackIDs)
-	}
-	favs, _ := repo.ListFavorites(ctx, u.ID, shared.Page{Limit: 10})
-	if favs.Total != 0 {
-		t.Fatalf("favorite should be gone: %d", favs.Total)
 	}
 }

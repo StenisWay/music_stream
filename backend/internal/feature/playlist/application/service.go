@@ -76,34 +76,43 @@ func (s *Service) AppendTracks(ctx context.Context, owner shared.UserID, id doma
 	if err != nil {
 		return err
 	}
+	// The limit applies to the resulting playlist, not just the appended part.
+	combined := append(p.TrackIDs, trackIDs...)
+	if err := domain.ValidateTrackCount(combined); err != nil {
+		return err
+	}
 	if err := s.validateTracks(ctx, trackIDs); err != nil {
 		return err
 	}
-	return s.playlists.SetTracks(ctx, owner, id, append(p.TrackIDs, trackIDs...))
+	return s.playlists.SetTracks(ctx, owner, id, combined)
+}
+
+// RemoveTrack drops every occurrence of track from the playlist. Removing a
+// track that is not there is not an error.
+func (s *Service) RemoveTrack(ctx context.Context, owner shared.UserID, id domain.PlaylistID, track library.TrackID) error {
+	p, err := s.playlists.Get(ctx, owner, id)
+	if err != nil {
+		return err
+	}
+	kept := make([]library.TrackID, 0, len(p.TrackIDs))
+	for _, t := range p.TrackIDs {
+		if t != track {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) == len(p.TrackIDs) {
+		return nil
+	}
+	return s.playlists.SetTracks(ctx, owner, id, kept)
+}
+
+// Containing tells which of the owner's playlists include track.
+func (s *Service) Containing(ctx context.Context, owner shared.UserID, track library.TrackID) (map[domain.PlaylistID]bool, error) {
+	return s.playlists.Containing(ctx, owner, track)
 }
 
 func (s *Service) Delete(ctx context.Context, owner shared.UserID, id domain.PlaylistID) error {
 	return s.playlists.Delete(ctx, owner, id)
-}
-
-func (s *Service) AddFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error {
-	if _, err := s.tracks.Get(ctx, track); err != nil {
-		return err
-	}
-	return s.playlists.AddFavorite(ctx, owner, track)
-}
-
-func (s *Service) RemoveFavorite(ctx context.Context, owner shared.UserID, track library.TrackID) error {
-	return s.playlists.RemoveFavorite(ctx, owner, track)
-}
-
-func (s *Service) ListFavorites(ctx context.Context, owner shared.UserID, p shared.Page) (shared.PageResult[library.Track], error) {
-	ids, err := s.playlists.ListFavorites(ctx, owner, p.Normalize())
-	if err != nil {
-		return shared.PageResult[library.Track]{}, err
-	}
-	tracks, err := s.orderedTracks(ctx, ids.Items)
-	return shared.PageResult[library.Track]{Items: tracks, Total: ids.Total, Page: ids.Page}, err
 }
 
 // orderedTracks loads tracks keeping the order (and repeats) of ids and
@@ -124,14 +133,6 @@ func (s *Service) orderedTracks(ctx context.Context, ids []library.TrackID) ([]l
 		}
 	}
 	return out, nil
-}
-
-// FavoriteFlags tells which of the given tracks the user has favorited.
-func (s *Service) FavoriteFlags(ctx context.Context, owner shared.UserID, ids []library.TrackID) (map[library.TrackID]bool, error) {
-	if len(ids) == 0 {
-		return map[library.TrackID]bool{}, nil
-	}
-	return s.playlists.FavoriteIDs(ctx, owner, ids)
 }
 
 // validateTracks enforces the length limit and that every id exists.

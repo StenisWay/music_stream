@@ -76,7 +76,7 @@ func serve(args []string) error {
 		return err
 	}
 	defer a.Close()
-	code := a.Pairing(ctx).Encode()
+	code := a.Pairing().Encode()
 	log.Info("app connection code (paste into the Android app)", "code", code)
 	return a.Run(ctx)
 }
@@ -92,7 +92,7 @@ func pairingCode(args []string) error {
 		return err
 	}
 	defer a.Close()
-	fmt.Println(a.Pairing(ctx).Encode())
+	fmt.Println(a.Pairing().Encode())
 	return nil
 }
 

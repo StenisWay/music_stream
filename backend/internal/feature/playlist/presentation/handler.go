@@ -1,5 +1,5 @@
 // Package presentation is the HTTP delivery of the playlist feature
-// (playlists and favorites).
+// (user playlists).
 package presentation
 
 import (
@@ -10,9 +10,10 @@ import (
 	"musicstream/internal/feature/playlist/domain"
 	"musicstream/internal/platform/httpx"
 	"net/http"
+	"strconv"
 )
 
-// Handler serves favorites and playlists.
+// Handler serves playlists.
 type Handler struct {
 	Playlists *application.Service
 	Presenter libraryhttp.Presenter
@@ -20,9 +21,6 @@ type Handler struct {
 }
 
 func (h *Handler) Register(mux *http.ServeMux, authed httpx.Wrap) {
-	mux.Handle("GET /api/v1/favorites", authed(h.listFavorites))
-	mux.Handle("PUT /api/v1/favorites/{trackId}", authed(h.addFavorite))
-	mux.Handle("DELETE /api/v1/favorites/{trackId}", authed(h.removeFavorite))
 	mux.Handle("GET /api/v1/playlists", authed(h.listPlaylists))
 	mux.Handle("POST /api/v1/playlists", authed(h.createPlaylist))
 	mux.Handle("GET /api/v1/playlists/{id}", authed(h.getPlaylist))
@@ -30,6 +28,7 @@ func (h *Handler) Register(mux *http.ServeMux, authed httpx.Wrap) {
 	mux.Handle("DELETE /api/v1/playlists/{id}", authed(h.deletePlaylist))
 	mux.Handle("PUT /api/v1/playlists/{id}/tracks", authed(h.replacePlaylistTracks))
 	mux.Handle("POST /api/v1/playlists/{id}/tracks", authed(h.appendPlaylistTracks))
+	mux.Handle("DELETE /api/v1/playlists/{id}/tracks/{trackId}", authed(h.removePlaylistTrack))
 }
 
 type playlistSummaryDTO struct {
@@ -37,6 +36,8 @@ type playlistSummaryDTO struct {
 	Name       string `json:"name"`
 	TrackCount int    `json:"trackCount"`
 	UpdatedAt  int64  `json:"updatedAt"`
+	// ContainsTrack is only set when the listing was asked about a track.
+	ContainsTrack *bool `json:"containsTrack,omitempty"`
 }
 
 type playlistDTO struct {
@@ -54,55 +55,35 @@ func toTrackIDs(raw []int64) []library.TrackID {
 	return out
 }
 
-func (h *Handler) listFavorites(w http.ResponseWriter, r *http.Request) {
-	res, err := h.Playlists.ListFavorites(r.Context(), httpx.UserFrom(r.Context()), httpx.PageFromQuery(r))
-	if err != nil {
-		httpx.WriteDomainError(w, r, h.Log, err)
-		return
-	}
-	page, err := h.Presenter.TrackPage(r.Context(), res)
-	if err != nil {
-		httpx.WriteDomainError(w, r, h.Log, err)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, page)
-}
-
-func (h *Handler) addFavorite(w http.ResponseWriter, r *http.Request) {
-	id, ok := httpx.PathInt64(r, "trackId")
-	if !ok {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_argument", "bad track id")
-		return
-	}
-	if err := h.Playlists.AddFavorite(r.Context(), httpx.UserFrom(r.Context()), library.TrackID(id)); err != nil {
-		httpx.WriteDomainError(w, r, h.Log, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) removeFavorite(w http.ResponseWriter, r *http.Request) {
-	id, ok := httpx.PathInt64(r, "trackId")
-	if !ok {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_argument", "bad track id")
-		return
-	}
-	if err := h.Playlists.RemoveFavorite(r.Context(), httpx.UserFrom(r.Context()), library.TrackID(id)); err != nil {
-		httpx.WriteDomainError(w, r, h.Log, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
+// listPlaylists optionally takes ?containsTrack={trackId} so a picker can
+// show which playlists already hold that track.
 func (h *Handler) listPlaylists(w http.ResponseWriter, r *http.Request) {
-	list, err := h.Playlists.List(r.Context(), httpx.UserFrom(r.Context()))
+	owner := httpx.UserFrom(r.Context())
+	list, err := h.Playlists.List(r.Context(), owner)
 	if err != nil {
 		httpx.WriteDomainError(w, r, h.Log, err)
 		return
+	}
+	var containing map[domain.PlaylistID]bool
+	if raw := r.URL.Query().Get("containsTrack"); raw != "" {
+		track, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "invalid_argument", "bad containsTrack")
+			return
+		}
+		if containing, err = h.Playlists.Containing(r.Context(), owner, library.TrackID(track)); err != nil {
+			httpx.WriteDomainError(w, r, h.Log, err)
+			return
+		}
 	}
 	out := make([]playlistSummaryDTO, 0, len(list))
 	for _, p := range list {
-		out = append(out, playlistSummaryDTO{ID: int64(p.ID), Name: p.Name, TrackCount: p.TrackCount, UpdatedAt: httpx.Millis(p.UpdatedAt)})
+		dto := playlistSummaryDTO{ID: int64(p.ID), Name: p.Name, TrackCount: p.TrackCount, UpdatedAt: httpx.Millis(p.UpdatedAt)}
+		if containing != nil {
+			has := containing[p.ID]
+			dto.ContainsTrack = &has
+		}
+		out = append(out, dto)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
 }
@@ -190,6 +171,25 @@ func (h *Handler) replacePlaylistTracks(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) appendPlaylistTracks(w http.ResponseWriter, r *http.Request) {
 	h.modifyPlaylistTracks(w, r, true)
+}
+
+func (h *Handler) removePlaylistTrack(w http.ResponseWriter, r *http.Request) {
+	id, ok := httpx.PathInt64(r, "id")
+	if !ok {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_argument", "bad playlist id")
+		return
+	}
+	track, ok := httpx.PathInt64(r, "trackId")
+	if !ok {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_argument", "bad track id")
+		return
+	}
+	pid := domain.PlaylistID(id)
+	if err := h.Playlists.RemoveTrack(r.Context(), httpx.UserFrom(r.Context()), pid, library.TrackID(track)); err != nil {
+		httpx.WriteDomainError(w, r, h.Log, err)
+		return
+	}
+	h.writePlaylist(w, r, pid, http.StatusOK)
 }
 
 func (h *Handler) modifyPlaylistTracks(w http.ResponseWriter, r *http.Request, appendMode bool) {

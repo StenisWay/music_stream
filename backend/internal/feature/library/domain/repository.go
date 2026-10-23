@@ -18,8 +18,10 @@ type TrackRepository interface {
 	Delete(ctx context.Context, ids []TrackID) error
 	Count(ctx context.Context) (int, error)
 
-	ListArtists(ctx context.Context, query string, p shared.Page) (shared.PageResult[Artist], error)
+	ListArtists(ctx context.Context, query string, cat CategoryFilter, p shared.Page) (shared.PageResult[Artist], error)
 	GetArtist(ctx context.Context, id ArtistID) (Artist, error)
-	ListAlbums(ctx context.Context, artist ArtistID, query string, p shared.Page) (shared.PageResult[Album], error)
+	ListAlbums(ctx context.Context, artist ArtistID, query string, cat CategoryFilter, p shared.Page) (shared.PageResult[Album], error)
 	GetAlbum(ctx context.Context, id AlbumID) (Album, error)
+	// CategoryCounts returns the non-empty type/region folders.
+	CategoryCounts(ctx context.Context) ([]CategoryCount, error)
 }

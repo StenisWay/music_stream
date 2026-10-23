@@ -44,9 +44,9 @@ func LibrarySegments(m Meta, ext string) (artist, album, file string) {
 	return SanitizeSegment(m.GroupingArtist()), album, file + strings.ToLower(ext)
 }
 
-// LibraryPath returns the canonical relative location of a track inside the
-// organised library: <Artist>/<Album>/<NN - Title><ext>, or <Artist>/<Title><ext>
-// when the album is unknown.
+// LibraryPath returns the location of a track below its category folder
+// (see Category.Dir): <Artist>/<Album>/<NN - Title><ext>, or
+// <Artist>/<Title><ext> when the album is unknown.
 func LibraryPath(m Meta, ext string) string {
 	artist, album, file := LibrarySegments(m, ext)
 	if album == "" {

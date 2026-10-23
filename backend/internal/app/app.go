@@ -17,10 +17,9 @@ import (
 	authapp "musicstream/internal/feature/auth/application"
 	authinfra "musicstream/internal/feature/auth/infrastructure"
 	authhttp "musicstream/internal/feature/auth/presentation"
-	endpointapp "musicstream/internal/feature/endpoint/application"
-	endpointdomain "musicstream/internal/feature/endpoint/domain"
-	endpointinfra "musicstream/internal/feature/endpoint/infrastructure"
-	endpointhttp "musicstream/internal/feature/endpoint/presentation"
+	discoverapp "musicstream/internal/feature/discover/application"
+	discoverinfra "musicstream/internal/feature/discover/infrastructure"
+	discoverhttp "musicstream/internal/feature/discover/presentation"
 	ingestapp "musicstream/internal/feature/ingest/application"
 	ingestdomain "musicstream/internal/feature/ingest/domain"
 	ingestinfra "musicstream/internal/feature/ingest/infrastructure"
@@ -28,6 +27,9 @@ import (
 	libraryapp "musicstream/internal/feature/library/application"
 	libraryinfra "musicstream/internal/feature/library/infrastructure"
 	libraryhttp "musicstream/internal/feature/library/presentation"
+	pairingapp "musicstream/internal/feature/pairing/application"
+	pairingdomain "musicstream/internal/feature/pairing/domain"
+	pairinginfra "musicstream/internal/feature/pairing/infrastructure"
 	playlistapp "musicstream/internal/feature/playlist/application"
 	playlistinfra "musicstream/internal/feature/playlist/infrastructure"
 	playlisthttp "musicstream/internal/feature/playlist/presentation"
@@ -42,16 +44,16 @@ import (
 
 // App holds the wired application.
 type App struct {
-	cfg       config.Config
-	log       *slog.Logger
-	db        *sqlitex.DB
-	media     *libraryinfra.MediaStore
-	scanner   *libraryapp.Scanner
-	ingestor  *ingestapp.Ingestor    // nil when no inbox is configured
-	publisher *endpointapp.Publisher // nil when endpoint publishing is disabled
-	pairing   *endpointapp.Pairing
-	handler   http.Handler
-	sec       security
+	cfg      config.Config
+	log      *slog.Logger
+	db       *sqlitex.DB
+	media    *libraryinfra.MediaStore
+	scanner  *libraryapp.Scanner
+	ingestor *ingestapp.Ingestor // nil when no inbox is configured
+	discover *discoverapp.Service
+	pairing  *pairingapp.Pairing
+	handler  http.Handler
+	sec      security
 }
 
 // New wires every feature. It performs no network I/O.
@@ -99,17 +101,19 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 		}
 	}
 
-	// ---- endpoint ----
-	if cfg.Endpoint.Enabled {
-		if a.publisher, err = a.wirePublisher(ctx); err != nil {
-			return nil, err
-		}
+	// ---- discover (downloads land in the inbox; ingest files them) ----
+	var inbox discoverapp.Inbox
+	if a.ingestor != nil {
+		inbox = discoverinfra.NewInboxDir(a.ingestor.Inbox())
 	}
-	a.pairing = endpointapp.NewPairing(endpointapp.PairingConfig{
-		ServerID: a.sec.serverID, FirebaseURL: cfg.Endpoint.Firebase.DatabaseURL,
-		Port: cfg.Server.PublicPort, Scheme: a.sec.scheme(), CertPin: a.sec.certPin,
-		PublicKey: a.sec.publicKey, EndpointKey: a.sec.endpointKey,
-	}, endpointinfra.LAN{}, a.publisher)
+	a.discover = discoverapp.NewService(
+		discoverinfra.NewYtDlp(cfg.Discover.YtDlp, cfg.Transcode.FFmpeg, filepath.Join(cfg.DataDir, "discover")),
+		inbox, libraryArtists{tracks}, discoverapp.Config{}, log.With("feature", "discover"))
+
+	// ---- pairing ----
+	a.pairing = pairingapp.NewPairing(pairingapp.PairingConfig{
+		Port: cfg.Server.Port(), Scheme: a.sec.scheme(), CertPin: a.sec.certPin, PublicKey: a.sec.publicKey,
+	}, pairinginfra.LAN{})
 
 	// ---- system ----
 	status := systemapp.NewStatusService(version, catalog,
@@ -117,7 +121,7 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 		stream.CanTranscode)
 
 	// ---- HTTP ----
-	presenter := libraryhttp.Presenter{Favorites: playlists, CanTranscode: stream.CanTranscode}
+	presenter := libraryhttp.Presenter{CanTranscode: stream.CanTranscode}
 	a.handler = newRouter(authSvc, httpLog,
 		&authhttp.Handler{Auth: authSvc, Log: httpLog},
 		&systemhttp.Handler{Status: status, Log: httpLog},
@@ -125,7 +129,7 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 		&playlisthttp.Handler{Playlists: playlists, Presenter: presenter, Log: httpLog},
 		&streamhttp.Handler{Stream: stream, Log: httpLog},
 		&ingesthttp.Handler{Ingestor: a.ingestor, Log: httpLog},
-		&endpointhttp.Handler{Publisher: a.publisher},
+		&discoverhttp.Handler{Discover: a.discover, Log: httpLog},
 	)
 	ok = true
 	return a, nil
@@ -162,25 +166,6 @@ func (a *App) wireAuth(ctx context.Context) (*authapp.Service, error) {
 	return svc, nil
 }
 
-func (a *App) wirePublisher(ctx context.Context) (*endpointapp.Publisher, error) {
-	var store endpointapp.Store = endpointinfra.NoopStore{}
-	if fb := a.cfg.Endpoint.Firebase; fb.DatabaseURL != "" {
-		sealer, err := a.sec.endpointSealer(ctx, a.db)
-		if err != nil {
-			return nil, err
-		}
-		rtdb, err := endpointinfra.NewRTDB(ctx, fb.DatabaseURL, fb.CredentialsFile, sealer)
-		if err != nil {
-			return nil, err
-		}
-		store = rtdb
-	}
-	return endpointapp.NewPublisher(endpointinfra.NewPublicIP(), endpointinfra.LAN{}, store, endpointapp.Config{
-		ServerID: a.sec.serverID, Port: a.cfg.Server.PublicPort, Scheme: a.sec.scheme(), CertPin: a.sec.certPin,
-		Interval: a.cfg.Endpoint.CheckInterval,
-	}, a.log.With("feature", "endpoint")), nil
-}
-
 // newIngestor wires the inbox -> library pipeline. _misc, _duplicates and
 // the undo logs live next to the library folder.
 func newIngestor(cfg config.Config, catalog ingestapp.Catalog, refresh ingestapp.CatalogRefresher, log *slog.Logger) (*ingestapp.Ingestor, error) {
@@ -209,9 +194,25 @@ func newIngestor(cfg config.Config, catalog ingestapp.Catalog, refresh ingestapp
 		cfg.Library.IngestMinAge, newLog, log), nil
 }
 
+// libraryArtists adapts the track repository to discover's ArtistCatalog
+// port, so discover does not depend on the library feature.
+type libraryArtists struct{ tracks *libraryinfra.TrackRepository }
+
+func (l libraryArtists) KnownArtists(ctx context.Context) ([]string, error) {
+	all, err := l.tracks.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, 2*len(all))
+	for _, t := range all {
+		out = append(out, t.Artist, t.AlbumArtist)
+	}
+	return out, nil
+}
+
 // Pairing builds the connection code shown to the user.
-func (a *App) Pairing(ctx context.Context) endpointdomain.PairingInfo {
-	return a.pairing.Info(ctx)
+func (a *App) Pairing() pairingdomain.PairingInfo {
+	return a.pairing.Info()
 }
 
 // Close releases resources.

@@ -29,6 +29,7 @@ func (a *App) Run(ctx context.Context) error {
 		// Ingest after the first scan so duplicate detection sees the whole catalog.
 		a.ingest(ctx)
 	})
+	goFn(func() { a.discover.Run(ctx) })
 	if a.ingestor != nil {
 		w := fswatch.New(a.ingestor.Inbox(), a.cfg.Library.IngestMinAge, a.ingest, a.log.With("component", "inbox-watcher"))
 		goFn(func() {
@@ -47,10 +48,6 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	if iv := a.cfg.Library.RescanInterval; iv > 0 {
 		goFn(func() { every(ctx, iv, func(ctx context.Context) { a.ingest(ctx); a.rescan(ctx) }) })
-	}
-	if a.publisher != nil {
-		goFn(func() { a.publisher.Run(ctx) })
-		goFn(func() { a.publisher.WarnIfCGNAT(ctx) })
 	}
 	err := a.serveHTTP(ctx, cancel)
 	wg.Wait()

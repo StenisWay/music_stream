@@ -29,6 +29,9 @@ func (s *Catalog) ListTracks(ctx context.Context, f domain.TrackFilter, p shared
 	if !f.Sort.Valid() {
 		return shared.PageResult[domain.Track]{}, fmt.Errorf("sort %q: %w", f.Sort, shared.ErrInvalidArgument)
 	}
+	if err := f.Category.Validate(); err != nil {
+		return shared.PageResult[domain.Track]{}, err
+	}
 	f.Query = strings.TrimSpace(f.Query)
 	return s.tracks.List(ctx, f, p.Normalize())
 }
@@ -42,16 +45,28 @@ func (s *Catalog) GetTrack(ctx context.Context, id domain.TrackID) (domain.Track
 	return s.tracks.Get(ctx, id)
 }
 
-func (s *Catalog) ListArtists(ctx context.Context, query string, p shared.Page) (shared.PageResult[domain.Artist], error) {
-	return s.tracks.ListArtists(ctx, strings.TrimSpace(query), p.Normalize())
+func (s *Catalog) ListArtists(ctx context.Context, query string, cat domain.CategoryFilter, p shared.Page) (shared.PageResult[domain.Artist], error) {
+	if err := cat.Validate(); err != nil {
+		return shared.PageResult[domain.Artist]{}, err
+	}
+	return s.tracks.ListArtists(ctx, strings.TrimSpace(query), cat, p.Normalize())
 }
 
 func (s *Catalog) GetArtist(ctx context.Context, id domain.ArtistID) (domain.Artist, error) {
 	return s.tracks.GetArtist(ctx, id)
 }
 
-func (s *Catalog) ListAlbums(ctx context.Context, artist domain.ArtistID, query string, p shared.Page) (shared.PageResult[domain.Album], error) {
-	return s.tracks.ListAlbums(ctx, artist, strings.TrimSpace(query), p.Normalize())
+func (s *Catalog) ListAlbums(ctx context.Context, artist domain.ArtistID, query string, cat domain.CategoryFilter, p shared.Page) (shared.PageResult[domain.Album], error) {
+	if err := cat.Validate(); err != nil {
+		return shared.PageResult[domain.Album]{}, err
+	}
+	return s.tracks.ListAlbums(ctx, artist, strings.TrimSpace(query), cat, p.Normalize())
+}
+
+// Categories returns the type/region folders that contain tracks, in
+// display order.
+func (s *Catalog) Categories(ctx context.Context) ([]domain.CategoryCount, error) {
+	return s.tracks.CategoryCounts(ctx)
 }
 
 func (s *Catalog) GetAlbum(ctx context.Context, id domain.AlbumID) (domain.Album, []domain.Track, error) {
@@ -87,11 +102,11 @@ func (s *Catalog) Search(ctx context.Context, query string, limit int) (SearchRe
 	if err != nil {
 		return SearchResult{}, err
 	}
-	artists, err := s.tracks.ListArtists(ctx, query, page)
+	artists, err := s.tracks.ListArtists(ctx, query, domain.CategoryFilter{}, page)
 	if err != nil {
 		return SearchResult{}, err
 	}
-	albums, err := s.tracks.ListAlbums(ctx, "", query, page)
+	albums, err := s.tracks.ListAlbums(ctx, "", query, domain.CategoryFilter{}, page)
 	if err != nil {
 		return SearchResult{}, err
 	}

@@ -1,5 +1,5 @@
 // Command musicorg reorganises a messy music folder into a clean
-// <Artist>/<Album>/<Title> library that the streaming server can index.
+// <Type>/<Region>/<Artist>/<Album>/<Title> library that the streaming server can index.
 //
 //	musicorg -src ../music_data/music -dest ../music_data            # dry run, writes plan report
 //	musicorg -src ../music_data/music -dest ../music_data -apply     # move files, write undo log
@@ -16,6 +16,7 @@ import (
 	"musicstream/internal/feature/ingest/domain"
 	"musicstream/internal/feature/ingest/infrastructure"
 	"musicstream/internal/platform/audiotag"
+	"musicstream/internal/shared/trackmeta"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -74,7 +75,11 @@ func run() error {
 	fs.Exclude = []string{layout.LibraryRoot, layout.MiscRoot, layout.DuplicatesRoot}
 
 	started := time.Now()
-	plan, err := application.NewPlanner(fs, audiotag.NewReader()).Plan(ctx, layout, application.PlanOptions{})
+	known, err := existingCategories(ctx, fs, layout.LibraryRoot)
+	if err != nil {
+		return err
+	}
+	plan, err := application.NewPlanner(fs, audiotag.NewReader()).Plan(ctx, layout, application.PlanOptions{KnownCategories: known})
 	if err != nil {
 		return err
 	}
@@ -109,6 +114,25 @@ func run() error {
 	}
 	slog.Info("apply finished", "moved", res.Moved, "removed_dirs", res.RemovedDirs, "failed", len(res.Failed), "undo_log", logPath)
 	return err
+}
+
+// existingCategories records where the artists already in the library live,
+// so new tracks join them.
+func existingCategories(ctx context.Context, fs *infrastructure.LocalFS, libraryRoot string) (trackmeta.ArtistCategories, error) {
+	known := trackmeta.ArtistCategories{}
+	if !fs.Exists(libraryRoot) {
+		return known, nil
+	}
+	files, err := infrastructure.NewLocalFS().ListFiles(ctx, libraryRoot)
+	if err != nil {
+		return nil, fmt.Errorf("list library: %w", err)
+	}
+	for _, f := range files {
+		if domain.IsAudio(f.Path) {
+			known.Add(filepath.ToSlash(f.Rel))
+		}
+	}
+	return known, nil
 }
 
 func writeReport(path string, plan domain.Plan, root string) error {

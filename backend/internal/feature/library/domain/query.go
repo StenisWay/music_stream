@@ -23,5 +23,6 @@ type TrackFilter struct {
 	Query    string // case-insensitive substring over title/artist/album
 	ArtistID ArtistID
 	AlbumID  AlbumID
+	Category CategoryFilter
 	Sort     TrackSort
 }

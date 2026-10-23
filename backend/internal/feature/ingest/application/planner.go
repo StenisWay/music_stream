@@ -1,5 +1,5 @@
 // Package application holds the ingest use cases: planning how messy files
-// map onto the <Artist>/<Album>/<Title> layout, executing (and undoing) the
+// map onto the <Type>/<Region>/<Artist>/<Album>/<Title> layout, executing (and undoing) the
 // plan, and the server's automatic inbox ingest. All file access goes
 // through the ports in ports.go.
 package application
@@ -26,6 +26,9 @@ type PlanOptions struct {
 	// downloaded); they are picked up by a later run.
 	MinAge time.Duration
 	Now    func() time.Time
+	// KnownCategories maps artist folders already in the library to their
+	// type/region, so new tracks join them. Nil means every track is guessed.
+	KnownCategories trackmeta.ArtistCategories
 }
 
 // Planner builds a domain.Plan without touching any file.
@@ -105,7 +108,9 @@ func (p *Planner) Plan(ctx context.Context, l domain.Layout, opts PlanOptions) (
 	for _, it := range items {
 		meta, src := trackmeta.Resolve(it.tags, it.entry.Rel, artists)
 		artistSeg, albumSeg, file := trackmeta.LibrarySegments(meta, filepath.Ext(it.entry.Path))
-		dir := filepath.Join(l.LibraryRoot, p.folder(l.LibraryRoot, artistSeg, dirs))
+		cat := trackmeta.Classify(meta, filepath.Base(it.entry.Path), artistSeg, opts.KnownCategories)
+		catDir := filepath.Join(l.LibraryRoot, filepath.FromSlash(cat.Dir()))
+		dir := filepath.Join(catDir, p.folder(catDir, artistSeg, dirs))
 		if albumSeg != "" {
 			dir = filepath.Join(dir, p.folder(dir, albumSeg, dirs))
 		}

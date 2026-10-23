@@ -13,14 +13,16 @@ var (
 )
 
 // ResolveInLibrary resolves metadata for a file inside the organised
-// library, whose layout is <Artist>/[<Album>/][NN - ]<Title>.ext (see
-// LibraryPath). Folder and file names were chosen by the organizer or by the
+// library, whose layout is <Type>/<Region>/<Artist>/[<Album>/][NN - ]<Title>.ext
+// (see LibraryPath and SplitCategory; the older layout without the two
+// category levels is still understood). Folder and file names were chosen by the organizer or by the
 // user and are therefore authoritative; tags only contribute details and
 // their original spelling (before path sanitising).
 //
 // Files dropped directly into the library root fall back to Resolve.
 func ResolveInLibrary(tags Meta, relPath string, idx ArtistIndex) (Meta, Source) {
 	relPath = path.Clean(strings.ReplaceAll(relPath, "\\", "/"))
+	_, relPath, _ = SplitCategory(relPath)
 	dirs := strings.Split(path.Dir(relPath), "/")
 	if path.Dir(relPath) == "." || len(dirs) > 2 {
 		return Resolve(tags, relPath, idx)

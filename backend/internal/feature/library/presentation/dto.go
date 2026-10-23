@@ -1,6 +1,6 @@
 // Package presentation is the HTTP delivery of the library feature. It also
 // exports the track JSON contract and Presenter, which other features
-// (playlists, favorites) reuse to render tracks consistently.
+// (playlists) reuse to render tracks consistently.
 package presentation
 
 import (
@@ -32,10 +32,19 @@ type TrackDTO struct {
 	ArtworkURL  string `json:"artworkUrl,omitempty"`
 	HasArtwork  bool   `json:"hasArtwork"`
 	Playable    bool   `json:"playable"`
-	Favorite    bool   `json:"favorite"`
 	MetaSource  string `json:"metaSource"`
 	UserEdited  bool   `json:"userEdited"`
 	AddedAt     int64  `json:"addedAt"`
+	Type        string `json:"type,omitempty"`   // 歌曲 | 純音樂 (library folder)
+	Region      string `json:"region,omitempty"` // 華語 | 日本 | 韓國 | 歐美 | 其他
+}
+
+// CategoryDTO is one <Type>/<Region>/ folder of the library.
+type CategoryDTO struct {
+	Type        string `json:"type"`
+	Region      string `json:"region"`
+	TrackCount  int    `json:"trackCount"`
+	ArtistCount int    `json:"artistCount"`
 }
 
 type ArtistDTO struct {
@@ -91,20 +100,12 @@ func artworkURL(id domain.TrackID) string {
 	return fmt.Sprintf("/api/v1/tracks/%d/artwork", id)
 }
 
-// FavoriteLookup tells which tracks the caller has favorited (implemented by
-// the playlist feature; declared here so library does not depend on it).
-type FavoriteLookup interface {
-	FavoriteFlags(ctx context.Context, owner shared.UserID, ids []domain.TrackID) (map[domain.TrackID]bool, error)
-}
-
-// Presenter renders tracks for the current user: favourite flags and the
-// right stream URL (direct or transcoded).
+// Presenter renders tracks with the right stream URL (direct or transcoded).
 type Presenter struct {
-	Favorites    FavoriteLookup
 	CanTranscode func() bool
 }
 
-func (p Presenter) Track(t domain.Track, favorite bool) TrackDTO {
+func (p Presenter) Track(t domain.Track) TrackDTO {
 	streamURL := fmt.Sprintf("/api/v1/tracks/%d/stream", t.ID)
 	playable := t.Format.NativelyPlayableOnAndroid()
 	if !playable && p.CanTranscode != nil && p.CanTranscode() {
@@ -115,32 +116,24 @@ func (p Presenter) Track(t domain.Track, favorite bool) TrackDTO {
 	if t.HasArtwork {
 		art = t.ID
 	}
+	cat := t.Category()
 	return TrackDTO{
+		Type: cat.Type, Region: cat.Region,
 		ID: int64(t.ID), Title: t.Title, Artist: t.Artist, Album: t.Album, AlbumArtist: t.AlbumArtist,
 		ArtistID: string(t.ArtistID()), AlbumID: string(t.AlbumID()), TrackNo: t.TrackNo, Year: t.Year, Genre: t.Genre,
 		DurationMs: t.Duration.Milliseconds(), BitrateKbps: t.BitrateKbps, Size: t.Size, Format: string(t.Format),
 		StreamURL: streamURL, ArtworkURL: artworkURL(art), HasArtwork: t.HasArtwork,
-		Playable: playable, Favorite: favorite, MetaSource: string(t.MetaSource), UserEdited: t.UserEdited,
+		Playable: playable, MetaSource: string(t.MetaSource), UserEdited: t.UserEdited,
 		AddedAt: httpx.Millis(t.AddedAt),
 	}
 }
 
-// Tracks converts tracks and annotates favourites of the user in ctx.
-func (p Presenter) Tracks(ctx context.Context, tracks []domain.Track) ([]TrackDTO, error) {
-	fav := map[domain.TrackID]bool{}
-	if p.Favorites != nil && len(tracks) > 0 {
-		ids := make([]domain.TrackID, len(tracks))
-		for i, t := range tracks {
-			ids[i] = t.ID
-		}
-		var err error
-		if fav, err = p.Favorites.FavoriteFlags(ctx, httpx.UserFrom(ctx), ids); err != nil {
-			return nil, err
-		}
-	}
+// Tracks converts tracks. The error is kept for callers' convenience; it is
+// always nil.
+func (p Presenter) Tracks(_ context.Context, tracks []domain.Track) ([]TrackDTO, error) {
 	out := make([]TrackDTO, len(tracks))
 	for i, t := range tracks {
-		out[i] = p.Track(t, fav[t.ID])
+		out[i] = p.Track(t)
 	}
 	return out, nil
 }

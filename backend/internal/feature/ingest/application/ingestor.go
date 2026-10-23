@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"musicstream/internal/feature/ingest/domain"
+	"musicstream/internal/shared/trackmeta"
 )
 
 // IngestResult summarises one ingest run.
@@ -27,6 +28,8 @@ func (r IngestResult) Moved() bool { return r.Audio+r.Artwork > 0 }
 // Ingestor moves new files from the inbox into the organised library using
 // the same rules as `musicorg`, but aware of the existing catalog:
 //   - "Artist - Title" parsing knows every artist already in the library
+//   - tracks are filed under <Type>/<Region>/ (歌曲|純音樂 / 華語|日本|…);
+//     an artist already in the library keeps its region
 //   - artist/album folders are reused case-insensitively
 //   - content already in the library goes to _duplicates
 //   - files still being written (MinAge) and partial downloads are left alone
@@ -79,7 +82,9 @@ func (i *Ingestor) ingest(ctx context.Context) (IngestResult, error) {
 	}
 	hashes := make(map[string]bool, len(catalog))
 	artists := make([]string, 0, len(catalog))
+	categories := trackmeta.ArtistCategories{}
 	for _, t := range catalog {
+		categories.Add(t.Path)
 		if t.ContentHash != "" {
 			hashes[t.ContentHash] = true
 		}
@@ -87,9 +92,10 @@ func (i *Ingestor) ingest(ctx context.Context) (IngestResult, error) {
 	}
 
 	plan, err := i.planner.Plan(ctx, i.layout, PlanOptions{
-		KnownArtists: artists,
-		KnownContent: func(h string) bool { return hashes[h] },
-		MinAge:       i.minAge,
+		KnownArtists:    artists,
+		KnownContent:    func(h string) bool { return hashes[h] },
+		MinAge:          i.minAge,
+		KnownCategories: categories,
 	})
 	if err != nil {
 		return IngestResult{}, err

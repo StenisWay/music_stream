@@ -88,6 +88,8 @@ func TestResolveInLibrary(t *testing.T) {
 		{"X/a／b.mp3", Meta{Title: "a/b", Artist: "X"}, "a/b", "X", "", "", 0},
 		{"Unknown Artist/那些年.mp3", Meta{}, "那些年", "", "", "", 0},
 		{"五月天/五月天 - 倔強.mp3", Meta{}, "倔強", "五月天", "", "", 0},
+		{"歌曲/華語/梁靜茹/勇氣.mp3", Meta{}, "勇氣", "梁靜茹", "", "", 0},
+		{"純音樂/日本/CLANNAD/CLANNAD OST DISC1/05 - 渚.mp3", Meta{}, "渚", "CLANNAD", "CLANNAD OST DISC1", "", 5},
 	}
 	for _, tt := range tests {
 		got, _ := ResolveInLibrary(tt.tags, tt.rel, nil)

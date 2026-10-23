@@ -48,7 +48,7 @@ var featureDeps = map[string]bool{
 // crossLayerExceptions are deliberate imports of another feature's
 // non-domain layer.
 var crossLayerExceptions = map[string]bool{
-	// The track JSON contract is shared so favorites/playlists render
+	// The track JSON contract is shared so playlists render
 	// tracks exactly like the catalog does.
 	"feature/playlist/presentation->feature/library/presentation": true,
 }

@@ -43,8 +43,9 @@ func TestIngestIntoExistingLibrary(t *testing.T) {
 	lib, inbox := filepath.Join(root, "library"), filepath.Join(root, "inbox")
 
 	// Existing library: an upper-case artist folder and a known track.
-	write(t, filepath.Join(lib, "CLANNAD", "TOE.mp3"), "existing-toe", time.Hour)
-	write(t, filepath.Join(lib, "那英", "出賣.mp3"), "existing-chumai", time.Hour)
+	instJP, songCN := filepath.Join(lib, "純音樂", "日本"), filepath.Join(lib, "歌曲", "華語")
+	write(t, filepath.Join(instJP, "CLANNAD", "TOE.mp3"), "existing-toe", time.Hour)
+	write(t, filepath.Join(songCN, "那英", "出賣.mp3"), "existing-chumai", time.Hour)
 
 	db, err := sqlitex.Open(ctx, filepath.Join(root, "db.sqlite"))
 	if err != nil {
@@ -56,10 +57,10 @@ func TestIngestIntoExistingLibrary(t *testing.T) {
 	}
 	tracks := libraryinfra.NewTrackRepository(db)
 	fs := infrastructure.NewLocalFS()
-	hash, _ := fs.Hash(filepath.Join(lib, "那英", "出賣.mp3"))
+	hash, _ := fs.Hash(filepath.Join(songCN, "那英", "出賣.mp3"))
 	for _, tr := range []library.Track{
-		{Path: "CLANNAD/TOE.mp3", Title: "TOE", Artist: "CLANNAD"},
-		{Path: "那英/出賣.mp3", Title: "出賣", Artist: "那英", ContentHash: hash},
+		{Path: "純音樂/日本/CLANNAD/TOE.mp3", Title: "TOE", Artist: "CLANNAD"},
+		{Path: "歌曲/華語/那英/出賣.mp3", Title: "出賣", Artist: "那英", ContentHash: hash},
 	} {
 		tr.Size, tr.ModTime, tr.Format = 1, time.Unix(1, 0), library.FormatMP3
 		if _, err := tracks.Upsert(ctx, tr); err != nil {
@@ -68,11 +69,12 @@ func TestIngestIntoExistingLibrary(t *testing.T) {
 	}
 
 	settled := 2 * time.Minute
-	write(t, filepath.Join(inbox, "dl", "clannad - Ana.mp3"), "ana", settled)    // folder reused case-insensitively
-	write(t, filepath.Join(inbox, "征服 - 那英 na ying.mp3"), "zhengfu", settled)    // known artist on the right
-	write(t, filepath.Join(inbox, "copy of 出賣.mp3"), "existing-chumai", settled) // already in library
-	write(t, filepath.Join(inbox, "downloading.mp3.part"), "partial", settled)   // never touched
-	write(t, filepath.Join(inbox, "張學友 - 吻別.mp3"), "still copying", 0)           // too new
+	write(t, filepath.Join(inbox, "dl", "clannad - Ana.mp3"), "ana", settled)             // folder reused case-insensitively
+	write(t, filepath.Join(inbox, "Yiruma - Kiss the Rain (piano).mp3"), "rain", settled) // new artist, guessed category
+	write(t, filepath.Join(inbox, "征服 - 那英 na ying.mp3"), "zhengfu", settled)             // known artist on the right
+	write(t, filepath.Join(inbox, "copy of 出賣.mp3"), "existing-chumai", settled)          // already in library
+	write(t, filepath.Join(inbox, "downloading.mp3.part"), "partial", settled)            // never touched
+	write(t, filepath.Join(inbox, "張學友 - 吻別.mp3"), "still copying", 0)                    // too new
 
 	refresher := &countingRefresher{}
 	ing := application.NewIngestor(fs, audiotag.NewReader(), tracks, refresher, domain.Layout{
@@ -88,15 +90,16 @@ func TestIngestIntoExistingLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Audio != 2 || res.Duplicates != 1 || res.Failed != 0 {
+	if res.Audio != 3 || res.Duplicates != 1 || res.Failed != 0 {
 		t.Fatalf("result: %+v", res)
 	}
 	if refresher.calls != 1 {
 		t.Fatalf("catalog should be refreshed once after files moved, got %d", refresher.calls)
 	}
 	for _, want := range []string{
-		filepath.Join(lib, "CLANNAD", "Ana.mp3"),
-		filepath.Join(lib, "那英", "征服.mp3"),
+		filepath.Join(instJP, "CLANNAD", "Ana.mp3"),
+		filepath.Join(songCN, "那英", "征服.mp3"),
+		filepath.Join(lib, "純音樂", "歐美", "Yiruma", "Kiss the Rain (piano).mp3"),
 		filepath.Join(root, "_duplicates", "copy of 出賣.mp3"),
 		filepath.Join(inbox, "downloading.mp3.part"),
 		filepath.Join(inbox, "張學友 - 吻別.mp3"),
@@ -105,7 +108,7 @@ func TestIngestIntoExistingLibrary(t *testing.T) {
 			t.Errorf("missing %s", want)
 		}
 	}
-	if exists(filepath.Join(lib, "clannad")) {
+	if exists(filepath.Join(instJP, "clannad")) {
 		t.Error("created a second, lower-case artist folder")
 	}
 	if exists(filepath.Join(inbox, "dl")) || !exists(inbox) {

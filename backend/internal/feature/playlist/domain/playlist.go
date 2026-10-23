@@ -1,5 +1,5 @@
 // Package domain holds the playlist entities and rules: user-owned ordered
-// playlists and favorites. Tracks are referenced by library track id only.
+// playlists. Tracks are referenced by library track id only.
 package domain
 
 import (

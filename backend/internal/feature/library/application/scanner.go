@@ -165,7 +165,7 @@ func (s *Scanner) fullScanLocked(ctx context.Context) (ScanResult, error) {
 		case p.job.existing != nil:
 			res.Updated++
 		case p.hash != "" && missingByHash[p.hash].ID != 0 && !reattached[missingByHash[p.hash].ID]:
-			// Same content at a new path: keep the ID so playlists/favorites survive.
+			// Same content at a new path: keep the ID so playlists survive.
 			old := missingByHash[p.hash]
 			t.ID, t.AddedAt = old.ID, old.AddedAt
 			t.KeepCuration(old)
