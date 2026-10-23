@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MusicStream</string>
+
+    <!-- Navigation -->
+    <string name="nav_library">音樂庫</string>
+    <string name="nav_search">搜尋</string>
+    <string name="nav_podcasts">Podcast</string>
+    <string name="nav_radio">電台</string>
+    <string name="nav_me">我的</string>
+</resources>

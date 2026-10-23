@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common -->
+    <string name="retry">重試</string>
+    <string name="cancel">取消</string>
+    <string name="ok">確定</string>
+    <string name="save">儲存</string>
+    <string name="delete">刪除</string>
+    <string name="back">返回</string>
+    <string name="loading">載入中…</string>
+    <string name="play_all">全部播放</string>
+    <string name="shuffle">隨機播放</string>
+    <string name="more">更多</string>
+    <string name="empty_generic">目前沒有內容</string>
+
+    <!-- Errors -->
+    <string name="error_server_unreachable">連不到家裡的伺服器。請確認電腦已開機、伺服器正在執行；在外面時，請先在手機開啟 VPN。</string>
+    <string name="error_network">網路連線發生問題，請稍後再試。</string>
+    <string name="error_unauthorized">登入已過期，請重新登入。</string>
+    <string name="error_invalid_credentials">帳號或密碼錯誤。</string>
+    <string name="error_too_many_attempts">嘗試次數過多，請一分鐘後再試。</string>
+    <string name="error_not_found">找不到資料。</string>
+    <string name="error_certificate">伺服器憑證與配對時不同，為了安全已中止連線。若你重新安裝過伺服器，請重新配對。</string>
+    <string name="error_server">伺服器發生錯誤（%1$d）。</string>
+    <string name="error_invalid">輸入內容不正確：%1$s</string>
+    <string name="error_unknown">發生未預期的錯誤。</string>
+</resources>

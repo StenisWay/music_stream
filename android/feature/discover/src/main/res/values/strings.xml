@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="discover_search_hint">搜尋網路上的歌曲，加入音樂庫</string>
+    <string name="discover_source_youtube">YouTube</string>
+    <string name="discover_source_soundcloud">SoundCloud</string>
+    <string name="discover_intro">輸入歌名或歌手後按搜尋。按「＋」後，家裡的伺服器會下載這首歌，並自動分類到音樂庫。</string>
+    <string name="discover_no_results">找不到「%1$s」</string>
+    <string name="discover_downloads">下載紀錄</string>
+    <string name="discover_add">加入音樂庫</string>
+    <string name="discover_add_title">加入音樂庫</string>
+    <string name="discover_add_explain">檔案會依照下面的歌手、歌名和專輯分類。</string>
+    <string name="discover_artist">歌手</string>
+    <string name="discover_title">歌名</string>
+    <string name="discover_album">專輯（選填）</string>
+    <string name="discover_download">下載</string>
+    <string name="discover_cancel">取消</string>
+    <string name="discover_status_queued">排隊中</string>
+    <string name="discover_status_downloading">下載中…</string>
+    <string name="discover_status_done">已加入音樂庫</string>
+    <string name="discover_status_failed">下載失敗</string>
+    <string name="discover_queued">已開始下載「%1$s」</string>
+    <string name="discover_done">「%1$s」已加入音樂庫</string>
+    <string name="discover_failed">「%1$s」下載失敗</string>
+    <string name="discover_unavailable">伺服器沒辦法下載網路歌曲：請確認伺服器已安裝 yt-dlp，且有設定收件匣（inbox）。</string>
+    <string name="discover_upstream">線上來源暫時沒有回應，請稍後再試。如果一直失敗，可能需要更新伺服器上的 yt-dlp。</string>
+</resources>

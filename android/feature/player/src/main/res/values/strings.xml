@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="now_playing">正在播放</string>
+    <string name="play">播放</string>
+    <string name="pause">暫停</string>
+    <string name="next">下一首</string>
+    <string name="previous">上一首</string>
+    <string name="repeat">重複</string>
+    <string name="queue">播放佇列</string>
+    <string name="live">直播</string>
+    <string name="playback_error">播放失敗：%1$s</string>
+    <string name="playback_unauthorized">登入已過期，請重新登入後再播放。</string>
+    <string name="radio_unavailable">「%1$s」目前無法播放，電台可能暫停或更換了串流網址。</string>
+</resources>

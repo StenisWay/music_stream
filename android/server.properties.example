@@ -1,0 +1,7 @@
+# Copy to server.properties (git-ignored) and fill in your server.
+# With this file present the app skips pairing and connects here directly.
+# hosts: Tailscale MagicDNS name (<machine>.<tailnet>.ts.net); comma-separated for more.
+server.hosts=<machine>.<tailnet>.ts.net
+server.port=8443
+# SPKI pin of the server certificate ("sha256/<base64>", from the MS1: pairing code).
+server.pin=sha256/<base64>

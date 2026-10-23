@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared music widgets -->
+    <string name="unknown_artist">未知歌手</string>
+    <string name="unsupported_format">此格式需伺服器安裝 ffmpeg 才能播放</string>
+    <string name="track_count">%1$d 首</string>
+    <string name="album_count">%1$d 張專輯</string>
+
+    <!-- Library -->
+    <string name="tab_songs">曲目</string>
+    <string name="category_all_types">全部類型</string>
+    <string name="category_all_regions">全部語區</string>
+    <!-- 類型/語區 chip: folder name and number of tracks, e.g. 華語 344 -->
+    <string name="category_chip">%1$s %2$d</string>
+    <string name="tab_artists">歌手</string>
+    <string name="tab_albums">專輯</string>
+    <string name="sort_title">依歌名</string>
+    <string name="sort_artist">依歌手</string>
+    <string name="sort_recent">最近加入</string>
+    <string name="filter_hint">篩選…</string>
+    <string name="albums">專輯</string>
+    <string name="all_songs">所有歌曲</string>
+
+    <!-- Search -->
+    <string name="songs">歌曲</string>
+    <string name="artists">歌手</string>
+
+    <!-- Track actions -->
+    <string name="action_play_next">加到播放佇列</string>
+    <string name="added_to_queue">已加到播放佇列</string>
+
+</resources>

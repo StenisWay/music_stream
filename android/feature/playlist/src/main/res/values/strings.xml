@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Add to playlist -->
+    <string name="action_add_to_playlist">加入播放清單</string>
+    <string name="added_to_playlist">已加入「%1$s」</string>
+    <string name="new_playlist">新增播放清單</string>
+    <string name="playlist_name">清單名稱</string>
+    <string name="choose_playlist">加入播放清單</string>
+
+    <!-- Me -->
+    <string name="me_settings">設定</string>
+    <string name="playlists">播放清單</string>
+    <string name="no_playlists">還沒有播放清單。</string>
+    <string name="rename">重新命名</string>
+    <string name="delete_playlist_confirm">確定要刪除「%1$s」嗎？</string>
+    <string name="remove_from_playlist">從清單移除</string>
+</resources>

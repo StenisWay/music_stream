@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="radio_search_hint">搜尋電台名稱</string>
+    <string name="radio_favorites">收藏的電台</string>
+    <string name="radio_popular">熱門電台</string>
+    <string name="radio_country_tw">台灣</string>
+    <string name="radio_country_all">全球</string>
+</resources>
