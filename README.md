@@ -90,18 +90,56 @@ session  library ◄── playlist  podcast   radio    player   discover     �
 | `:feature:player` | 迷你播放器、全螢幕播放頁 |
 | `:feature:discover` | 線上搜尋歌曲並下載到伺服器 |
 
-每個 `:feature:*` 模組內部分成四個 package（`:feature:player` 只有畫面，直接使用 `:core:playback`，所以不分）：
+#### 每個功能是一條由上到下的流
+
+每個 `:feature:*` 模組都是一條完整的垂直流：從畫面一路串到資料來源，中間每一層只認識下一層的介面。
+
+```
+ presentation   Composable 畫面 ──使用者事件──► ViewModel
+                     ▲                            │ 呼叫
+                     └─── StateFlow<UiState> ─────┤ （Loading / Success / Error）
+                                                  ▼
+ domain                                       UseCase
+                                                  │
+                                                  ▼
+                                         Repository（介面）
+                                                  ▲ 實作
+ data                                    RepositoryImpl
+                                                  │
+                                                  ▼
+                              Retrofit API ／ Room DAO ／ DataStore
+```
+
+以「音樂庫列出歌曲」為例：
+
+```
+LibraryScreen → LibraryViewModel → GetTracksPageUseCase → LibraryRepository
+  → LibraryRepositoryImpl → LibraryApi → GET /api/v1/tracks（家用伺服器）
+```
+
+各功能的流：
+
+| 功能 | 畫面 | ViewModel | UseCase（主要） | Repository → 資料來源 |
+|---|---|---|---|---|
+| `session` | `PairScreen`、`LoginScreen`、`SettingsScreen` | `PairViewModel`、`LoginViewModel`、`SettingsViewModel` | `PairServerUseCase`、`LoginUseCase`、`LogoutUseCase`、`GetServerInfoUseCase` | `ConnectionRepository`、`AuthRepository`、`ServerInfoRepository` → `AuthApi`、`ServerInfoApi`、`ConnectionStore`、`TokenStore` |
+| `library` | `LibraryScreen`、`ArtistScreen`、`AlbumScreen` | `LibraryViewModel`、`ArtistViewModel`、`AlbumViewModel` | `GetTracksPageUseCase`、`GetArtistsPageUseCase`、`GetAlbumsPageUseCase`、`GetCategoriesUseCase` | `LibraryRepository` → `LibraryApi`（家用伺服器） |
+| `playlist` | `MeScreen`、`PlaylistScreen`、加入播放清單選單 | `PlaylistsViewModel`、`PlaylistViewModel`、`AddToPlaylistViewModel` | `GetPlaylistsUseCase`、`CreatePlaylistUseCase`、`AddToPlaylistUseCase`、`MovePlaylistTrackUseCase` | `PlaylistRepository` → `PlaylistApi`（家用伺服器） |
+| `podcast` | `PodcastsScreen`、`PodcastDetailScreen`、`PodcastHistoryScreen` | `PodcastsViewModel`、`PodcastDetailViewModel`、`PodcastHistoryViewModel` | `SearchPodcastsUseCase`、`SubscribePodcastUseCase`、`FetchFeedPageUseCase`、`PlayEpisodesUseCase` | `PodcastRepository` → `ITunesApi`、`RssParser`、Room（`PodcastDao`、`EpisodeDao`、`EpisodeHistoryDao`） |
+| `radio` | `RadioScreen` | `RadioViewModel` | `SearchStationsUseCase`、`ToggleFavoriteStationUseCase` | `RadioRepository` → `RadioBrowserApi`、Room（`StationDao`） |
+| `discover` | `DiscoverScreen` | `DiscoverViewModel` | `SearchOnlineUseCase`、`AddToLibraryUseCase`、`GetDownloadsUseCase` | `DiscoverRepository` → `DiscoverApi`（家用伺服器） |
+| `player` | `MiniPlayer`、`NowPlayingSheet` | `PlayerViewModel` | —（沒有 domain／data） | 直接使用 `:core:playback` 的 `PlayerController` |
+
+每條流在模組內對應到四個 package：
 
 | package | 內容 |
 |---|---|
-| `domain` | model、repository 介面、UseCase（不依賴 AndroidX） |
-| `data` | Retrofit API、DTO、repository 實作 |
 | `presentation` | Compose 畫面與 `@HiltViewModel` |
-| `di` | 該模組自己的 Hilt module |
+| `domain` | model、repository 介面、UseCase（純 Kotlin，不依賴 AndroidX） |
+| `data` | Retrofit API、DTO、Room 存取、repository 實作 |
+| `di` | 該模組自己的 Hilt module，把 repository 介面綁到實作 |
 
 主要設計：
 
-- **單向資料流**：Composable 送事件給 ViewModel → 呼叫 UseCase → Repository；ViewModel 以 `StateFlow<UiState>`（Loading / Success / Error）回傳狀態。
 - **功能之間幾乎不互相依賴**：唯一例外是 `playlist → library`（共用歌曲資料與歌曲列元件）。
 - **虛擬主機 `https://server.musicstream/`**：所有指向家用伺服器的 URL 都用這個固定名稱，由攔截器改寫成目前可用的位址。切換 Wi-Fi／4G 時播放器的 URI 不用變，快取也保持穩定。
 - **單一 TrustManager**：憑證符合伺服器的 pin 就信任，否則交給系統 CA。一個 OkHttpClient 同時供 Retrofit、ExoPlayer 和 Coil 使用。
