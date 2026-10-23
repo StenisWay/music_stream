@@ -80,6 +80,11 @@ backend/
     │   ├── system/                  # /healthz、/server/info
     │   │   ├── application/
     │   │   └── presentation/
+    │   ├── discover/                # 線上找歌：搜尋 YouTube / SoundCloud，下載到 inbox
+    │   │   ├── domain/              ← Source、Candidate、下載工作、允許下載的網域清單
+    │   │   ├── application/         ← Service；ports.go（Fetcher、Inbox、ArtistCatalog）
+    │   │   ├── infrastructure/      ← yt-dlp（搜尋、下載、轉 mp3）、把檔案放進 inbox
+    │   │   └── presentation/        ← /discover/search、/discover/downloads
     │   └── pairing/                 # 連線碼（備用，App 目前用 server.properties）：位址、pin、公鑰；只在 log 輸出
     │       ├── domain/
     │       ├── application/
@@ -118,7 +123,7 @@ backend/
 | `shared` 不依賴任何東西 | kernel 必須保持最小 |
 | `platform` 只依賴 `shared` 和其他 `platform` | 技術積木不知道有哪些功能 |
 | 功能之間只能透過對方的 `domain` 型別 | 例如 `playlist/application` 可以用 `library/domain.Track`，但不能呼叫 `library/application` |
-| 功能之間的依賴方向固定 | 只允許 `playlist → library`、`stream → library`、`ingest → library`；要新增必須明確修改 `featureDeps` |
+| 功能之間的依賴方向固定 | 只允許 `playlist → library`、`stream → library`、`ingest → library`；要新增必須明確修改 `featureDeps`。`discover` 需要已知歌手名單時，透過自己的 `ArtistCatalog` port，由 `app` 接上 library 的 repository，所以不算功能依賴 |
 | 唯一的跨層例外 | `playlist/presentation → library/presentation`：播放清單要用同一套 TrackDTO 輸出歌曲 |
 | 只有 `app` 能 import `config` 和 `app` | 組裝的責任集中在一處 |
 
@@ -158,6 +163,13 @@ ExoPlayer ─GET /api/v1/tracks/42/stream (Range)─►
 4. hash 相同但路徑不同 → 視為搬移，沿用原 ID
 5. 保留使用者手動修正過的 metadata
 6. 刪除檔案已消失的歌曲
+
+線上找歌流程：App 呼叫 `GET /discover/search` → `discover/application.Service` 透過 `Fetcher`（yt-dlp）搜尋，並用 `ArtistCatalog` 提供的曲庫歌手名單猜出歌手和歌名 → 使用者按「＋」→ `POST /discover/downloads` 建立下載工作（排隊 → 下載中 → 完成／失敗）
+1. 只接受 domain 允許清單裡的網域（YouTube、SoundCloud），避免伺服器去抓任意或內網網址
+2. yt-dlp 下載並用 ffmpeg 轉成 mp3，暫存在 `dataDir/discover`
+3. 依歌手和歌名命名後，透過 `Inbox` 放進 inbox
+4. 之後交給 ingest：自動分類並搬進 library，掃描後就會出現在音樂庫
+5. App 用 `GET /discover/downloads` 查看下載進度
 
 ### 3.5 給第一次寫 Go 的導讀
 
@@ -213,12 +225,12 @@ make run             # 以 config.yaml 啟動
 ```
                          :app（Navigation、Application、Coil、DI 進入點）
                            │
-   ┌─────────┬─────────┬───┴─────┬──────────┬─────────┐
-   ▼         ▼         ▼         ▼          ▼         ▼
-:feature: :feature: :feature: :feature:  :feature: :feature:
- session   library ◄─playlist  podcast    radio     player
-   │         │         │         │          │         │
-   └─────────┴────┬────┴─────────┴──────────┴─────────┘
+   ┌─────────┬─────────┬───┴─────┬──────────┬─────────┬──────────┐
+   ▼         ▼         ▼         ▼          ▼         ▼          ▼
+:feature: :feature: :feature: :feature:  :feature: :feature:  :feature:
+ session   library ◄─playlist  podcast    radio     player    discover
+   │         │         │         │          │         │          │
+   └─────────┴────┬────┴─────────┴──────────┴─────────┴──────────┘
                   ▼
    :core:network  :core:playback  :core:database  :core:ui  :core:common
 ```
@@ -238,6 +250,7 @@ make run             # 以 config.yaml 啟動
 | `:feature:podcast` | Android library | iTunes 搜尋、RSS 解析、訂閱、續播、背景更新 | WorkManager |
 | `:feature:radio` | Android library | Radio Browser 熱門與搜尋、收藏、回報點擊 | |
 | `:feature:player` | Android library | 迷你播放器、全螢幕播放頁、播放錯誤提示 | |
+| `:feature:discover` | Android library | 線上找歌：搜尋 YouTube / SoundCloud、請伺服器下載、下載紀錄 | |
 | `:app` | Application | Navigation、`MusicStreamApp`（Hilt、WorkManager、Coil 設定） | Compose BOM 2026.09、Navigation（type-safe）、Coil 3 |
 
 **播放事件的擴充點**：`:core:playback` 不認識 Podcast 和電台。功能模組用 Hilt `@IntoSet` 提供 `PlaybackEventListener`（`EpisodeProgressRecorder`、`RadioPlayReporter`），由 `PlaybackEventDispatcher` 在換曲、暫停和每 10 秒時呼叫。
@@ -310,7 +323,7 @@ NetworkMonitor：預設網路變動（onAvailable / onLost）→ 清除快取
 | 分頁 | 畫面 |
 |---|---|
 | 音樂庫 | 歌曲 / 歌手 / 專輯（篩選、排序、分頁）→ 歌手頁 → 專輯頁 |
-| 搜尋 | 歌手、專輯、歌曲三區塊 |
+| 搜尋 | 線上找歌（`:feature:discover`）：選 YouTube 或 SoundCloud 搜尋，按「＋」由伺服器下載並自動分類到音樂庫；下方顯示下載紀錄 |
 | Podcast | 訂閱列表、iTunes 搜尋、RSS 網址訂閱 → 節目頁（下拉更新、進度條、已聽完標記） |
 | 電台 | 收藏、熱門（台灣 / 全球）、搜尋 |
 | 我的 | 播放清單（新增、改名、刪除、移除歌曲）、設定（伺服器狀態、登出） |
