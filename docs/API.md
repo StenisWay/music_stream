@@ -366,7 +366,7 @@ App 的 JSON 設定是 `ignoreUnknownKeys = true`，所以伺服器多回的欄�
 | `POST /auth/logout` | `AuthApi.logout` | ✅ | 不帶 Bearer（`AuthInterceptor` 跳過 `/auth/*`），伺服器也不要求 |
 | `GET /tracks` | `LibraryApi.tracks` | ✅ | `sort` 的 4 個值與伺服器完全相同 |
 | `GET /tracks/{id}` | — | ⬜ | |
-| `PATCH /tracks/{id}` | — | ⬜ | TODO #11 |
+| `PATCH /tracks/{id}` | — | ⬜ | App 尚未實作編輯 metadata |
 | `GET /tracks/{id}/stream` | ExoPlayer（`@ServerClient`） | ✅ | 直接用 Track 的 `streamUrl`，轉檔參數由伺服器決定 |
 | `GET /tracks/{id}/artwork` | Coil（`@ServerClient`） | ✅ | 同一個 client，會帶 token |
 | `GET /artists` | `LibraryApi.artists` | ✅ | |
@@ -378,9 +378,9 @@ App 的 JSON 設定是 `ignoreUnknownKeys = true`，所以伺服器多回的欄�
 | `GET /discover/search` | `DiscoverApi.search` | ✅ | 固定 `limit=20`；送出搜尋時才查詢，打字時不查 |
 | `POST /discover/downloads` | `DiscoverApi.download` | ✅ | |
 | `GET /discover/downloads` | `DiscoverApi.downloads` | ✅ | 有工作在進行時每 2 秒輪詢一次 |
-| `GET /library/duplicates` | — | ⬜ | TODO #12 |
-| `POST /library/scan` | — | ⬜ | TODO #13 |
-| `POST /library/ingest` | — | ⬜ | TODO #13 |
+| `GET /library/duplicates` | — | ⬜ | App 尚未實作重複檔清單 |
+| `POST /library/scan` | — | ⬜ | App 尚未實作手動觸發 |
+| `POST /library/ingest` | — | ⬜ | App 尚未實作手動觸發 |
 | `GET /playlists` | `PlaylistApi.playlists` | ✅ | |
 | `POST /playlists` | `PlaylistApi.createPlaylist` | ✅ | 201 也算成功 |
 | `GET /playlists/{id}` | `PlaylistApi.playlist` | ✅ | |
@@ -405,7 +405,7 @@ App 的 JSON 設定是 `ignoreUnknownKeys = true`，所以伺服器多回的欄�
 
 App 必填（沒有預設值）的欄位只有 Track 的 `id`、`title`、`streamUrl`，以及 TokenPair 全部欄位；伺服器每次都會回傳，沒有風險。
 
-做 TODO #11（編輯 metadata）時，需要在 `TrackDto` 加上 `genre`、`userEdited`，畫面才能顯示目前值與「已手動修正」。
+App 實作編輯 metadata 時，需要在 `TrackDto` 加上 `genre`、`userEdited`，畫面才能顯示目前值與「已手動修正」。
 
 ### 4.4 錯誤處理比對
 

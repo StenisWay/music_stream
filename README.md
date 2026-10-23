@@ -13,6 +13,5 @@
 | `docs/SPEC.md` | 規格書：需求、API、資料模型、驗收狀態 |
 | `docs/API.md` | API 文件：所有端點、資料結構、錯誤碼，以及和 App 的比對結果 |
 | `docs/ARCHITECTURE.md` | 架構統整：分層、流程、關鍵設計、Go 導讀、部署 |
-| `TODO.md` | 待辦事項：上線前必做、資料整理、功能缺口、品質改善 |
 
 快速開始請見 [docs/ARCHITECTURE.md §6](docs/ARCHITECTURE.md#6-部署與維運)。

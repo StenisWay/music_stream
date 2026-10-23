@@ -290,7 +290,7 @@ DataStore `session`：connection（JSON），以及 access 和 refresh token（K
 
 | # | 項目 | 建議 |
 |---|---|---|
-| L1 | 73 首 WMA 要即時轉檔才能播放，轉檔時不能拖動進度 | Docker 映像檔已內含 ffmpeg，可以播放；想要能拖動進度，可一次性轉成 mp3（TODO #10） |
+| L1 | 73 首 WMA 要即時轉檔才能播放，轉檔時不能拖動進度 | Docker 映像檔已內含 ffmpeg，可以播放；想要能拖動進度，可一次性轉成 mp3 |
 | L2 | 45 首歌的歌手推斷不出來（歸在 `Unknown Artist`） | 用 `PATCH /tracks/{id}` 修正；之後可以在 App 加編輯畫面 |
 | L3 | 華語歌在 MusicBrainz 上資料少 | 之後可以整合 AcoustID 或 MusicBrainz 做自動辨識（選用） |
 | L4 | 搜尋使用 LIKE | 超過 10 萬首時，再考慮 FTS5 trigram |
