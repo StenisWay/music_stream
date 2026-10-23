@@ -1,6 +1,9 @@
 package dev.musicstream.feature.player
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,9 +31,11 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -45,6 +50,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -155,25 +164,50 @@ fun NowPlayingSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val musicControls = item.kind == MediaKind.MUSIC
-                IconButton(onClick = vm::toggleShuffle, enabled = musicControls) {
-                    Icon(Icons.Default.Shuffle, stringResource(UiR.string.shuffle), tint = if (state.shuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                ModeToggleButton(checked = state.shuffle, onClick = vm::toggleShuffle, enabled = musicControls) {
+                    Icon(Icons.Default.Shuffle, stringResource(UiR.string.shuffle))
                 }
                 IconButton(onClick = vm::previous, enabled = item.kind != MediaKind.RADIO) { Icon(Icons.Default.SkipPrevious, stringResource(R.string.previous), Modifier.size(36.dp)) }
                 FilledIconButton(onClick = vm::toggle, modifier = Modifier.size(72.dp)) {
                     Icon(if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, stringResource(if (state.isPlaying) R.string.pause else R.string.play), Modifier.size(40.dp))
                 }
                 IconButton(onClick = vm::next, enabled = item.kind != MediaKind.RADIO) { Icon(Icons.Default.SkipNext, stringResource(R.string.next), Modifier.size(36.dp)) }
-                IconButton(onClick = vm::cycleRepeat, enabled = musicControls) {
+                ModeToggleButton(checked = state.repeat != RepeatMode.OFF, onClick = vm::cycleRepeat, enabled = musicControls) {
                     Icon(
                         if (state.repeat == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
                         stringResource(R.string.repeat),
-                        tint = if (state.repeat != RepeatMode.OFF) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+/** Shuffle/repeat toggle: filled "pressed-in" look while on, shrinks and vibrates on tap. */
+@Composable
+private fun ModeToggleButton(checked: Boolean, onClick: () -> Unit, enabled: Boolean, icon: @Composable () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.85f else 1f, label = "modeToggleScale")
+    FilledTonalIconToggleButton(
+        checked = checked,
+        onCheckedChange = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
+        enabled = enabled,
+        interactionSource = interaction,
+        colors = IconButtonDefaults.filledTonalIconToggleButtonColors(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+        modifier = Modifier.scale(scale),
+        content = icon,
+    )
 }
 
 @Composable

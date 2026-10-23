@@ -1,31 +1,56 @@
 package dev.musicstream.core.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-private val Indigo = Color(0xFF3D5AFE)
+// Blue-black palette: near-black navy surfaces with an electric-blue accent.
+private val NightBlack = Color(0xFF0A0E17)
+private val Electric = Color(0xFF4D8DFF)
 
-private val LightColors = lightColorScheme(primary = Indigo, secondary = Color(0xFF5C6BC0))
-private val DarkColors = darkColorScheme(primary = Color(0xFF8C9EFF), secondary = Color(0xFF9FA8DA))
+private val BlueBlackColors = darkColorScheme(
+    primary = Electric,
+    onPrimary = Color(0xFF001A40),
+    primaryContainer = Color(0xFF173A70),
+    onPrimaryContainer = Color(0xFFD6E3FF),
+    inversePrimary = Color(0xFF2F5FC4),
 
-/** Material 3 theme; uses wallpaper-based dynamic colour on Android 12+. */
+    secondary = Color(0xFF8FB4FF),
+    onSecondary = Color(0xFF0D2350),
+    secondaryContainer = Color(0xFF1E2A44),
+    onSecondaryContainer = Color(0xFFD8E2FF),
+
+    tertiary = Color(0xFF5ED4F5),
+    onTertiary = Color(0xFF00313D),
+    tertiaryContainer = Color(0xFF0E4A5A),
+    onTertiaryContainer = Color(0xFFB8EEFF),
+
+    background = NightBlack,
+    onBackground = Color(0xFFE3E8F2),
+    surface = NightBlack,
+    onSurface = Color(0xFFE3E8F2),
+    surfaceVariant = Color(0xFF1C2433),
+    onSurfaceVariant = Color(0xFF9AA6BC),
+    surfaceTint = Electric,
+    inverseSurface = Color(0xFFE3E8F2),
+    inverseOnSurface = Color(0xFF1A1F2A),
+
+    surfaceDim = NightBlack,
+    surfaceBright = Color(0xFF2A3346),
+    surfaceContainerLowest = Color(0xFF06090F),
+    surfaceContainerLow = Color(0xFF0E131E),
+    surfaceContainer = Color(0xFF121826),
+    surfaceContainerHigh = Color(0xFF182030),
+    surfaceContainerHighest = Color(0xFF1F283A),
+
+    outline = Color(0xFF3A4558),
+    outlineVariant = Color(0xFF263042),
+    scrim = Color.Black,
+)
+
+/** Material 3 theme; always the blue-black palette (no light mode, no wallpaper colours). */
 @Composable
-fun MusicStreamTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val ctx = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        }
-        darkTheme -> DarkColors
-        else -> LightColors
-    }
-    MaterialTheme(colorScheme = colors, content = content)
+fun MusicStreamTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = BlueBlackColors, content = content)
 }

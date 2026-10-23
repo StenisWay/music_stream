@@ -126,7 +126,7 @@ fun PodcastsScreen(onPodcast: (String) -> Unit, onHistory: () -> Unit, vm: Podca
     var confirmUnsubscribe by remember { mutableStateOf<Podcast?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)) {
             OutlinedTextField(
                 value = query, onValueChange = { vm.query.value = it },
                 placeholder = { Text(stringResource(R.string.podcast_search_hint)) },
