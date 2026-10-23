@@ -255,16 +255,26 @@ make run             # 以 config.yaml 啟動
 
 **播放事件的擴充點**：`:core:playback` 不認識 Podcast 和電台。功能模組用 Hilt `@IntoSet` 提供 `PlaybackEventListener`（`EpisodeProgressRecorder`、`RadioPlayReporter`），由 `PlaybackEventDispatcher` 在換曲、暫停和每 10 秒時呼叫。
 
-### 4.2 Presentation：單向資料流
+### 4.2 資料流：API → Repository → UseCase → ViewModel 全部用 Flow
 
 ```
-Composable ──事件──► ViewModel ──呼叫──► UseCase ──► Repository(介面)
-    ▲                    │
-    └── StateFlow<UiState>┘    (Loading / Success / Error(AppError))
+API／DAO ──apiFlow──► Repository: Flow<T> ──asResult──► UseCase: Flow<Result<T>> ──asUiState──► ViewModel: StateFlow<UiState>
+                                                                                                    │        ▲
+                                                                                               Composable ──事件┘
 ```
 
-- 每個畫面一個 `@HiltViewModel`，以 `StateFlow` 暴露狀態，畫面端用 `collectAsStateWithLifecycle` 收集
-- 分頁：domain 層只回傳 `Page<T>`，由 `OffsetPagingSource` 在 presentation 層轉成 Paging 3（domain 不依賴 AndroidX）
+| 層 | 回傳 | 寫法 |
+|---|---|---|
+| Repository（domain 介面） | `Flow<T>`，cold、每次 collect 執行一次 | 實作用 `apiFlow { api.x() }`（例外轉成 `AppError`）；本機工作用 `flow { … }.flowOn(Dispatchers.IO)` |
+| UseCase | `Flow<Result<T>>` | 驗證輸入（失敗時發出 `Result.failure(AppError.Invalid)`），再 `repo.x().asResult()` |
+| ViewModel（讀取） | `StateFlow<UiState<T>>` | `trigger.flatMapLatest { useCase().asUiState() }.stateIn(...)`；重試就是讓 trigger 多發一次 |
+| ViewModel（動作） | — | `useCase(...).onStart { … }.onEach { result -> … }.onCompletion { … }.launchIn(viewModelScope)` |
+
+- 每個畫面一個 `@HiltViewModel`，畫面端用 `collectAsStateWithLifecycle` 收集
+- 分頁：UseCase 回傳 `Flow<Result<Page<T>>>`，`pagerOf` 取第一個值交給 `OffsetPagingSource`，轉成 Paging 3（domain 不依賴 AndroidX）
+- 輪詢也是 Flow：`ObserveDownloadsUseCase` 每 2 秒發出一次下載狀態，直到沒有進行中的工作
+- 不在畫面鏈上的呼叫端（播放事件 `EpisodeProgressRecorder`、`RadioPlayReporter`，WorkManager 的 `PodcastRefreshWorker`）同樣拿 Flow，用 `collect()` 或 `first()` 執行
+- 例外：OkHttp 攔截器需要同步取得伺服器位址，所以 `:core:network` 的 `ServerEndpointResolver.resolve()` 維持 `suspend`；domain 用的是包成 Flow 的 `ConnectionRepository.findServer()`
 - 跨畫面共用的動作（加入佇列）集中在 `TrackActionsViewModel`；「加入播放清單」由 playlist 模組透過 `LocalTrackMenuExtensions` 加進同一個選單
 
 ### 4.3 關鍵設計

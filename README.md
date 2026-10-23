@@ -90,25 +90,44 @@ session  library ◄── playlist  podcast   radio    player   discover     �
 | `:feature:player` | 迷你播放器、全螢幕播放頁 |
 | `:feature:discover` | 線上搜尋歌曲並下載到伺服器 |
 
-#### 每個功能是一條由上到下的流
+#### 每個功能是一條 Flow：API → Repository → UseCase → ViewModel
 
-每個 `:feature:*` 模組都是一條完整的垂直流：從畫面一路串到資料來源，中間每一層只認識下一層的介面。
+每一層都回傳 Kotlin `Flow`，沒有 `suspend` 函式；資料從 API 一路以 Flow 往上傳到畫面。讀取（列表、詳細、搜尋）和動作（新增、刪除、登入、下載）都一樣。
 
 ```
- presentation   Composable 畫面 ──使用者事件──► ViewModel
-                     ▲                            │ 呼叫
-                     └─── StateFlow<UiState> ─────┤ （Loading / Success / Error）
-                                                  ▼
- domain                                       UseCase
+ data           Retrofit API ／ Room DAO
+                     │  apiFlow { api.x() }          ← 一次網路呼叫包成 cold Flow，例外轉成 AppError
+                     ▼
+                RepositoryImpl ── Flow<T> ──►  Repository（domain 介面）
                                                   │
-                                                  ▼
-                                         Repository（介面）
-                                                  ▲ 實作
- data                                    RepositoryImpl
+ domain                                           ▼
+                                               UseCase   .asResult()  ← 驗證輸入，Flow<T> → Flow<Result<T>>
                                                   │
+ presentation                                     ▼
+                                              ViewModel  .asUiState() + stateIn  ← Flow<UiState>（Loading → Success / Error）
+                                                  │                 動作則用 .onEach { … }.launchIn(viewModelScope)
                                                   ▼
-                              Retrofit API ／ Room DAO ／ DataStore
+                                         Composable 畫面（collectAsStateWithLifecycle）
 ```
+
+```kotlin
+// data：一次 API 呼叫 = 一個 cold Flow
+override fun album(id: String) = apiFlow {
+    api.album(id).let { AlbumDetail(it.album.toDomain(), it.tracks.map { t -> t.toDomain() }) }
+}
+
+// domain：只回傳 Flow<Result<T>>
+class GetAlbumDetailUseCase @Inject constructor(private val library: LibraryRepository) {
+    operator fun invoke(id: String): Flow<Result<AlbumDetail>> = library.album(id).asResult()
+}
+
+// presentation：重新整理也是 Flow（reload 觸發 flatMapLatest）
+val state: StateFlow<UiState<AlbumDetail>> = reload
+    .flatMapLatest { getAlbum(id).asUiState() }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
+```
+
+共用的轉接函式：`apiFlow`（`:core:network`）、`asResult`（`:core:common`）、`asUiState`、`pagerOf`（`:core:ui`，讓 Paging 3 直接吃 UseCase 的 Flow）。
 
 以「音樂庫列出歌曲」為例：
 
