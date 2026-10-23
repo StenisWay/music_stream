@@ -1,0 +1,23 @@
+# Secrets and machine-specific values (password hash, Tailscale address)
+.env
+
+# Music library (mounted into the container as /music)
+music_data/
+
+# Audio files anywhere else, just in case
+*.mp3
+*.flac
+*.m4a
+*.aac
+*.wav
+*.ogg
+*.opus
+*.wma
+*.alac
+*.aiff
+
+# Personal task list, kept local
+TODO.md
+
+# IDE settings
+.idea/

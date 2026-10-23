@@ -1,0 +1,29 @@
+# MusicStream server. Start: docker compose up -d --build
+# Remote access goes through Tailscale running on the host (no port forwarding).
+services:
+  musicserver:
+    build:
+      context: ./backend
+      args:
+        ALPINE_MIRROR: https://mirror.twds.com.tw/alpine
+    image: musicstream/musicserver:local
+    container_name: musicserver
+    restart: unless-stopped
+    # Host network so the server can bind the host's Tailscale address
+    # (MUSICSTREAM_LISTEN in .env); the LAN cannot reach it.
+    network_mode: host
+    # Same uid as the owner of music_data, so ingest can move files.
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      MUSICSTREAM_PASSWORD_HASH: ${MUSICSTREAM_PASSWORD_HASH:?set it in .env}
+      MUSICSTREAM_LISTEN: ${MUSICSTREAM_LISTEN:?set it in .env, e.g. 100.x.y.z:8443}
+      TZ: Asia/Taipei
+    volumes:
+      - ./music_data:/music
+      - ./backend/data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://$$MUSICSTREAM_LISTEN/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
