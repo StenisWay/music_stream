@@ -37,3 +37,7 @@ suspend inline fun <T> apiCall(block: () -> T): T = try {
 } catch (e: Throwable) {
     throw e.toAppError()
 }
+
+/** One network call as a cold [Flow]: emits the result once, failures mapped like [apiCall]. */
+fun <T> apiFlow(block: suspend () -> T): kotlinx.coroutines.flow.Flow<T> =
+    kotlinx.coroutines.flow.flow { emit(apiCall { block() }) }

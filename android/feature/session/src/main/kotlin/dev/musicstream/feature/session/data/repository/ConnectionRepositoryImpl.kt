@@ -9,6 +9,7 @@ import dev.musicstream.feature.session.domain.repository.ConnectionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
@@ -33,7 +34,9 @@ import kotlin.coroutines.resume
  * GET /healthz and the first one to answer wins.
  * The result is cached until [invalidate] (network change) or a failure.
  *
- * Also serves as the network layer's [ServerEndpointResolver].
+ * Also serves as the network layer's [ServerEndpointResolver]: OkHttp's
+ * interceptor needs a plain suspend call, so [resolve] stays one and
+ * [findServer] wraps it as a flow for the domain.
  */
 @Singleton
 class ConnectionRepositoryImpl @Inject constructor(
@@ -45,15 +48,19 @@ class ConnectionRepositoryImpl @Inject constructor(
 
     override val connection: Flow<ServerConnection?> = store.connection
 
-    override suspend fun save(connection: ServerConnection) {
+    override fun save(connection: ServerConnection) = flow {
         store.save(connection)
         invalidate()
+        emit(Unit)
     }
 
-    override suspend fun clear() {
+    override fun clear() = flow {
         store.clear()
         invalidate()
+        emit(Unit)
     }
+
+    override fun findServer(force: Boolean) = flow { emit(resolve(force)) }
 
     fun invalidate() {
         resolvedBase = null

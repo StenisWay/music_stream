@@ -39,7 +39,9 @@ import dev.musicstream.feature.session.domain.usecase.LoginUseCase
 import dev.musicstream.feature.session.domain.usecase.LogoutUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import javax.inject.Inject
 
 data class LoginUiState(val busy: Boolean = false, val error: AppError? = null)
@@ -52,14 +54,20 @@ class LoginViewModel @Inject constructor(
     private val _state = MutableStateFlow(LoginUiState())
     val state: StateFlow<LoginUiState> = _state
 
-    fun submit(username: String, password: String) = viewModelScope.launch {
-        _state.value = LoginUiState(busy = true)
+    fun submit(username: String, password: String) {
         login(username, password)
-            .onSuccess { _state.value = LoginUiState() }
-            .onFailure { _state.value = LoginUiState(error = it.asAppError()) }
+            .onStart { _state.value = LoginUiState(busy = true) }
+            .onEach { result ->
+                result
+                    .onSuccess { _state.value = LoginUiState() }
+                    .onFailure { _state.value = LoginUiState(error = it.asAppError()) }
+            }
+            .launchIn(viewModelScope)
     }
 
-    fun changeServer() = viewModelScope.launch { logout(forgetServer = true) }
+    fun changeServer() {
+        logout(forgetServer = true).launchIn(viewModelScope)
+    }
 }
 
 @Composable

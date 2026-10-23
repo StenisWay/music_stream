@@ -23,14 +23,16 @@ import dev.musicstream.core.ui.component.DetailScaffold
 import dev.musicstream.core.ui.component.ErrorState
 import dev.musicstream.core.ui.component.LoadingState
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.session.R
 import dev.musicstream.feature.session.domain.model.ServerInfo
 import dev.musicstream.feature.session.domain.usecase.GetServerInfoUseCase
 import dev.musicstream.feature.session.domain.usecase.LogoutUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
 @HiltViewModel
@@ -43,9 +45,18 @@ class SettingsViewModel @Inject constructor(
 
     init { load() }
 
-    fun load() = viewModelScope.launch { _info.value = getServerInfo().toUiState() }
+    private var loading: Job? = null
 
-    fun logout(forgetServer: Boolean) = viewModelScope.launch { logout.invoke(forgetServer) }
+    fun load() {
+        loading?.cancel()
+        loading = getServerInfo().asUiState()
+            .onEach { if (it !is UiState.Loading || _info.value !is UiState.Success) _info.value = it }
+            .launchIn(viewModelScope)
+    }
+
+    fun logout(forgetServer: Boolean) {
+        logout.invoke(forgetServer).launchIn(viewModelScope)
+    }
 }
 
 @Composable

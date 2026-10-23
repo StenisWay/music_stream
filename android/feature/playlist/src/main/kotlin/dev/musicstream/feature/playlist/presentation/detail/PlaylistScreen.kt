@@ -35,7 +35,7 @@ import dev.musicstream.core.ui.component.MenuAction
 import dev.musicstream.core.ui.component.NameDialog
 import dev.musicstream.core.ui.component.PlayButtons
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.library.presentation.actions.TrackActionsViewModel
 import dev.musicstream.feature.library.presentation.actions.trackMenu
 import dev.musicstream.feature.library.presentation.component.TrackRow
@@ -48,7 +48,9 @@ import dev.musicstream.feature.playlist.domain.usecase.RemoveFromPlaylistUseCase
 import dev.musicstream.feature.playlist.domain.usecase.RenamePlaylistUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
 @HiltViewModel
@@ -65,16 +67,34 @@ class PlaylistViewModel @Inject constructor(
 
     init { load() }
 
-    fun load() = viewModelScope.launch { _state.value = getPlaylist(id).toUiState() }
+    private var loading: Job? = null
 
-    fun remove(position: Int) = viewModelScope.launch {
-        val current = (_state.value as? UiState.Success)?.data ?: return@launch
-        removeFromPlaylist(current, position).onSuccess { _state.value = UiState.Success(it) }
+    fun load() {
+        loading?.cancel()
+        loading = getPlaylist(id).asUiState()
+            // Keep showing the playlist while refreshing it.
+            .onEach { if (it !is UiState.Loading || _state.value !is UiState.Success) _state.value = it }
+            .launchIn(viewModelScope)
     }
 
-    fun rename(name: String) = viewModelScope.launch { renamePlaylist(id, name).onSuccess { load() } }
+    fun remove(position: Int) {
+        val current = (_state.value as? UiState.Success)?.data ?: return
+        removeFromPlaylist(current, position)
+            .onEach { result -> result.onSuccess { _state.value = UiState.Success(it) } }
+            .launchIn(viewModelScope)
+    }
 
-    fun delete(done: () -> Unit) = viewModelScope.launch { deletePlaylist(id).onSuccess { done() } }
+    fun rename(name: String) {
+        renamePlaylist(id, name)
+            .onEach { result -> result.onSuccess { load() } }
+            .launchIn(viewModelScope)
+    }
+
+    fun delete(done: () -> Unit) {
+        deletePlaylist(id)
+            .onEach { result -> result.onSuccess { done() } }
+            .launchIn(viewModelScope)
+    }
 }
 
 @Composable

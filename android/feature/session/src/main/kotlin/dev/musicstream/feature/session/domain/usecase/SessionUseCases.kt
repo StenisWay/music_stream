@@ -1,55 +1,62 @@
 package dev.musicstream.feature.session.domain.usecase
 
 import dev.musicstream.core.common.AppError
-import dev.musicstream.core.common.runCatchingApp
+import dev.musicstream.core.common.asResult
 import dev.musicstream.feature.session.domain.model.ConnectionCode
+import dev.musicstream.feature.session.domain.model.ServerConnection
 import dev.musicstream.feature.session.domain.model.ServerInfo
 import dev.musicstream.feature.session.domain.model.SessionState
 import dev.musicstream.feature.session.domain.repository.AuthRepository
 import dev.musicstream.feature.session.domain.repository.ConnectionRepository
 import dev.musicstream.feature.session.domain.repository.ServerInfoRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
-/** Parses a connection code (or manual address), verifies reachability and stores it. */
+/** Parses a connection code (or manual address), stores it and checks the server answers. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class PairServerUseCase @Inject constructor(private val connections: ConnectionRepository) {
-    suspend operator fun invoke(code: String): Result<Unit> = runCatchingApp {
-        val connection = try {
-            ConnectionCode.parse(code)
-        } catch (e: IllegalArgumentException) {
-            throw AppError.Invalid(e.message ?: "invalid code")
-        }
-        connections.save(connection)
-        connections.resolve(force = true)
-    }
+    operator fun invoke(code: String): Flow<Result<Unit>> = pair("invalid code") { ConnectionCode.parse(code) }
 
-    suspend fun manual(hostAndPort: String, certPin: String?): Result<Unit> = runCatchingApp {
+    fun manual(hostAndPort: String, certPin: String?): Flow<Result<Unit>> =
+        pair("invalid address") { ConnectionCode.manual(hostAndPort, certPin) }
+
+    private fun pair(invalid: String, parse: () -> ServerConnection): Flow<Result<Unit>> = flow {
         val connection = try {
-            ConnectionCode.manual(hostAndPort, certPin)
+            parse()
         } catch (e: IllegalArgumentException) {
-            throw AppError.Invalid(e.message ?: "invalid address")
+            throw AppError.Invalid(e.message ?: invalid)
         }
-        connections.save(connection)
-        connections.resolve(force = true)
-    }
+        emitAll(
+            connections.save(connection)
+                .flatMapConcat { connections.findServer(force = true) }
+                .map { },
+        )
+    }.asResult()
 }
 
 class LoginUseCase @Inject constructor(private val auth: AuthRepository) {
-    suspend operator fun invoke(username: String, password: String): Result<Unit> = runCatchingApp {
+    operator fun invoke(username: String, password: String): Flow<Result<Unit>> = flow {
         if (username.isBlank() || password.isEmpty()) throw AppError.Invalid("username and password are required")
-        auth.login(username.trim(), password)
-    }
+        emitAll(auth.login(username.trim(), password))
+    }.asResult()
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LogoutUseCase @Inject constructor(
     private val auth: AuthRepository,
     private val connections: ConnectionRepository,
 ) {
-    suspend operator fun invoke(forgetServer: Boolean = false) {
+    operator fun invoke(forgetServer: Boolean = false): Flow<Result<Unit>> =
         auth.logout()
-        if (forgetServer) connections.clear()
-    }
+            .flatMapConcat { if (forgetServer) connections.clear() else flowOf(Unit) }
+            .asResult()
 }
 
 /** Derives the top-level flow (pair → login → app) from persisted session state. */
@@ -67,5 +74,5 @@ class ObserveSessionStateUseCase @Inject constructor(
 }
 
 class GetServerInfoUseCase @Inject constructor(private val repo: ServerInfoRepository) {
-    suspend operator fun invoke(): Result<ServerInfo> = runCatchingApp { repo.serverInfo() }
+    operator fun invoke(): Flow<Result<ServerInfo>> = repo.serverInfo().asResult()
 }

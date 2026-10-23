@@ -5,6 +5,8 @@ import dev.musicstream.core.network.apiCall
 import dev.musicstream.feature.radio.data.remote.RadioBrowserApi
 import dev.musicstream.feature.radio.domain.model.RadioStation
 import dev.musicstream.feature.radio.domain.repository.RadioRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,23 +19,26 @@ class RadioRepositoryImpl @Inject constructor(
 ) : RadioRepository {
     override val favorites = stations.observeAll().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun search(name: String, countryCode: String?, limit: Int) = load(name, countryCode, limit)
+    override fun search(name: String, countryCode: String?, limit: Int) = load(name, countryCode, limit)
 
-    override suspend fun top(countryCode: String?, limit: Int) = load(null, countryCode, limit)
+    override fun top(countryCode: String?, limit: Int) = load(null, countryCode, limit)
 
-    private suspend fun load(name: String?, countryCode: String?, limit: Int): List<RadioStation> {
+    private fun load(name: String?, countryCode: String?, limit: Int): Flow<List<RadioStation>> = flow {
         val favs = stations.ids().toSet()
-        return apiCall { api.search(name, countryCode?.takeIf { it.isNotBlank() }, limit) }
+        val found = apiCall { api.search(name, countryCode?.takeIf { it.isNotBlank() }, limit) }
             .filter { it.lastCheckOk == 1 && (it.urlResolved.isNotBlank() || it.url.isNotBlank()) }
             .distinctBy { it.uuid }
             .map { it.toDomain(it.uuid in favs) }
+        emit(found)
     }
 
-    override suspend fun setFavorite(station: RadioStation, favorite: Boolean) {
+    override fun setFavorite(station: RadioStation, favorite: Boolean) = flow {
         if (favorite) stations.upsert(station.toEntity(System.currentTimeMillis())) else stations.delete(station.id)
+        emit(Unit)
     }
 
-    override suspend fun reportClick(stationId: String) {
+    override fun reportClick(stationId: String) = flow {
         runCatching { api.click(stationId) }
+        emit(Unit)
     }
 }

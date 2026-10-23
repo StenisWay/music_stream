@@ -53,6 +53,7 @@ import dev.musicstream.core.ui.component.LoadingState
 import dev.musicstream.core.ui.error.asAppError
 import dev.musicstream.core.ui.error.message
 import dev.musicstream.core.ui.paging.pager
+import dev.musicstream.core.ui.paging.pagerOf
 import dev.musicstream.feature.podcast.R
 import dev.musicstream.feature.podcast.domain.model.Episode
 import dev.musicstream.feature.podcast.domain.model.EpisodeProgress
@@ -73,10 +74,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -117,7 +123,7 @@ class PodcastDetailViewModel @Inject constructor(
 
     val episodes: Flow<PagingData<Episode>> =
         combine(subscription.map { it != null }.distinctUntilChanged(), reload) { subscribed, _ -> subscribed }
-            .flatMapLatest { subscribed -> if (subscribed) pager { o, l -> getEpisodePage(feedUrl, o, l) } else previewPager() }
+            .flatMapLatest { subscribed -> if (subscribed) pagerOf { o, l -> getEpisodePage(feedUrl, o, l) } else previewPager() }
             .cachedIn(viewModelScope)
 
     val progress: StateFlow<Map<String, EpisodeProgress>> = observeProgress(feedUrl)
@@ -139,7 +145,7 @@ class PodcastDetailViewModel @Inject constructor(
         return pager { offset, limit ->
             lock.withLock {
                 if (!started) {
-                    val first = fetchFeedPage(feedUrl).getOrThrow()
+                    val first = fetchFeedPage(feedUrl).first().getOrThrow()
                     previewPodcast.value = first.podcast
                     loaded += first.episodes
                     next = first.nextPageUrl
@@ -147,7 +153,7 @@ class PodcastDetailViewModel @Inject constructor(
                 }
                 while (loaded.size < offset + limit) {
                     val url = next ?: break
-                    val page = fetchFeedPage(feedUrl, url).getOrThrow()
+                    val page = fetchFeedPage(feedUrl, url).first().getOrThrow()
                     loaded += page.episodes.filter { e -> loaded.none { it.id == e.id } }
                     next = page.nextPageUrl?.takeIf { it != url }
                 }
@@ -156,13 +162,21 @@ class PodcastDetailViewModel @Inject constructor(
         }
     }
 
-    fun refresh() = viewModelScope.launch {
-        if (header.value?.subscribed == true) {
-            refreshing.value = true
-            refreshPodcasts(feedUrl).onFailure { error.value = it.asAppError() }
-            refreshing.value = false
+    /** Refetches a subscribed feed (a preview only reloads), then reloads the list. */
+    fun refresh() {
+        val fetch = if (header.value?.subscribed == true) {
+            refreshPodcasts(feedUrl)
+                .onStart { refreshing.value = true }
+                .onEach { result -> result.onFailure { error.value = it.asAppError() } }
+        } else {
+            flowOf(Result.success(Unit))
         }
-        reload.value++
+        fetch
+            .onCompletion {
+                refreshing.value = false
+                reload.value++
+            }
+            .launchIn(viewModelScope)
     }
 
     fun play(loaded: List<Episode>, index: Int) {
@@ -171,23 +185,32 @@ class PodcastDetailViewModel @Inject constructor(
         playEpisodes(loaded.map { it.withProgress(p[it.id]) }, index, title)
     }
 
-    fun setCompleted(episode: Episode, completed: Boolean) = viewModelScope.launch {
+    fun setCompleted(episode: Episode, completed: Boolean) {
         setCompleted.invoke(episode, header.value?.podcast?.title.orEmpty(), completed)
-            .onFailure { error.value = it.asAppError() }
+            .onEach { result -> result.onFailure { error.value = it.asAppError() } }
+            .launchIn(viewModelScope)
     }
 
-    fun subscribe() = viewModelScope.launch {
-        error.value = null
-        subscribing.value = true
-        subscribe.invoke(feedUrl).onFailure { error.value = it.asAppError() }
-        subscribing.value = false
+    fun subscribe() {
+        subscribe.invoke(feedUrl)
+            .onStart {
+                error.value = null
+                subscribing.value = true
+            }
+            .onEach { result -> result.onFailure { error.value = it.asAppError() } }
+            .onCompletion { subscribing.value = false }
+            .launchIn(viewModelScope)
     }
 
-    fun unsubscribe(done: () -> Unit) = viewModelScope.launch {
-        error.value = null
+    fun unsubscribe(done: () -> Unit) {
         unsubscribe.invoke(feedUrl)
-            .onSuccess { done() }
-            .onFailure { error.value = it.asAppError() }
+            .onStart { error.value = null }
+            .onEach { result ->
+                result
+                    .onSuccess { done() }
+                    .onFailure { error.value = it.asAppError() }
+            }
+            .launchIn(viewModelScope)
     }
 }
 

@@ -10,6 +10,7 @@ import dev.musicstream.feature.podcast.data.remote.ITunesApi
 import dev.musicstream.feature.podcast.data.repository.PodcastRepositoryImpl
 import dev.musicstream.feature.podcast.domain.model.Episode
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -61,14 +62,14 @@ class EpisodeHistoryTest {
         val repo = repo(history)
         repo.prepareForPlayback(listOf(episode("a"), episode("b")), "Show")
 
-        repo.markStarted("a")
+        repo.markStarted("a").collect()
         val a = history.get("a")!!
         assertEquals("Show", a.podcastTitle)
         assertTrue(a.lastPlayedAt > 0)
         // Queued but not started yet: not in the history.
         assertNull(history.get("b"))
         // Unknown episode (neither queued nor stored): ignored, no crash.
-        repo.saveProgress("zzz", 1_000, 0)
+        repo.saveProgress("zzz", 1_000, 0).collect()
         assertNull(history.get("zzz"))
     }
 
@@ -77,11 +78,11 @@ class EpisodeHistoryTest {
         val history = FakeHistory()
         val repo = repo(history)
         repo.prepareForPlayback(listOf(episode("a")), "Show")
-        repo.saveProgress("a", 120_000, 600_000)
+        repo.saveProgress("a", 120_000, 600_000).collect()
         assertFalse(history.get("a")!!.completed)
 
         // The player reports the item it left with durationMs = 0.
-        repo.saveProgress("a", 599_000, 0)
+        repo.saveProgress("a", 599_000, 0).collect()
         val a = history.get("a")!!
         assertTrue(a.completed)
         assertEquals(600_000, a.durationMs)
@@ -92,7 +93,7 @@ class EpisodeHistoryTest {
         val history = FakeHistory()
         val stored = EpisodeEntity("s", "feed", "Stored", "", "https://cdn/s.mp3", 0, 600_000, null)
         val repo = repo(history, FakeEpisodes(listOf(stored)), FakePodcasts(listOf(PodcastEntity("feed", "Show", "", "", null, 0, 0))))
-        repo.saveProgress("s", 30_000, 600_000)
+        repo.saveProgress("s", 30_000, 600_000).collect()
         assertEquals("Show", history.get("s")!!.podcastTitle)
         assertEquals(30_000, history.get("s")!!.positionMs)
     }
@@ -101,9 +102,9 @@ class EpisodeHistoryTest {
     fun markingUnplayedRewinds() = runBlocking {
         val history = FakeHistory()
         val repo = repo(history)
-        repo.setCompleted(episode("a"), "Show", completed = true)
+        repo.setCompleted(episode("a"), "Show", completed = true).collect()
         assertTrue(history.get("a")!!.completed)
-        repo.setCompleted(episode("a"), "Show", completed = false)
+        repo.setCompleted(episode("a"), "Show", completed = false).collect()
         assertFalse(history.get("a")!!.completed)
         assertEquals(0, history.get("a")!!.positionMs)
     }

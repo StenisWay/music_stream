@@ -33,9 +33,12 @@ import dev.musicstream.core.ui.error.asAppError
 import dev.musicstream.core.ui.error.message
 import dev.musicstream.feature.session.R
 import dev.musicstream.feature.session.domain.usecase.PairServerUseCase
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import javax.inject.Inject
 
 data class PairUiState(val busy: Boolean = false, val error: AppError? = null)
@@ -45,14 +48,18 @@ class PairViewModel @Inject constructor(private val pair: PairServerUseCase) : V
     private val _state = MutableStateFlow(PairUiState())
     val state: StateFlow<PairUiState> = _state
 
-    fun connect(code: String) = run { pair(code) }
-    fun connectManual(host: String, pin: String) = run { pair.manual(host, pin) }
+    fun connect(code: String) = run(pair(code))
+    fun connectManual(host: String, pin: String) = run(pair.manual(host, pin))
 
-    private fun run(block: suspend () -> Result<Unit>) = viewModelScope.launch {
-        _state.value = PairUiState(busy = true)
-        // Success flips RootViewModel to the login screen automatically.
-        block().onFailure { _state.value = PairUiState(error = it.asAppError()) }
-            .onSuccess { _state.value = PairUiState() }
+    private fun run(attempt: Flow<Result<Unit>>) {
+        attempt
+            .onStart { _state.value = PairUiState(busy = true) }
+            // Success flips RootViewModel to the login screen automatically.
+            .onEach { result ->
+                result.onFailure { _state.value = PairUiState(error = it.asAppError()) }
+                    .onSuccess { _state.value = PairUiState() }
+            }
+            .launchIn(viewModelScope)
     }
 }
 

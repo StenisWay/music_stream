@@ -60,7 +60,7 @@ import dev.musicstream.core.ui.component.formatDuration
 import dev.musicstream.core.ui.error.ErrorTexts
 import dev.musicstream.core.ui.error.asAppError
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.discover.R
 import dev.musicstream.feature.discover.domain.model.DownloadJob
 import dev.musicstream.feature.discover.domain.model.DownloadStatus
@@ -68,22 +68,22 @@ import dev.musicstream.feature.discover.domain.model.OnlineSong
 import dev.musicstream.feature.discover.domain.model.OnlineSource
 import dev.musicstream.feature.discover.domain.model.SongInfo
 import dev.musicstream.feature.discover.domain.usecase.AddToLibraryUseCase
-import dev.musicstream.feature.discover.domain.usecase.GetDownloadsUseCase
+import dev.musicstream.feature.discover.domain.usecase.ObserveDownloadsUseCase
 import dev.musicstream.feature.discover.domain.usecase.SearchOnlineUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface DiscoverEvent {
@@ -98,7 +98,7 @@ sealed interface DiscoverEvent {
 class DiscoverViewModel @Inject constructor(
     private val searchOnline: SearchOnlineUseCase,
     private val addToLibrary: AddToLibraryUseCase,
-    private val getDownloads: GetDownloadsUseCase,
+    private val observeDownloads: ObserveDownloadsUseCase,
 ) : ViewModel() {
     val query = MutableStateFlow("")
     val source = MutableStateFlow(OnlineSource.YOUTUBE)
@@ -109,13 +109,7 @@ class DiscoverViewModel @Inject constructor(
 
     /** null = nothing searched yet. */
     val results: StateFlow<UiState<List<OnlineSong>>?> = submitted
-        .flatMapLatest { s ->
-            flow {
-                if (s == null) { emit(null); return@flow }
-                emit(UiState.Loading)
-                emit(searchOnline(s.query, s.source).toUiState())
-            }
-        }
+        .flatMapLatest { s -> if (s == null) flowOf(null) else searchOnline(s.query, s.source).asUiState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _jobs = MutableStateFlow<List<DownloadJob>>(emptyList())
@@ -144,22 +138,26 @@ class DiscoverViewModel @Inject constructor(
         submitted.value = null
     }
 
-    fun add(song: OnlineSong, info: SongInfo) = viewModelScope.launch {
+    fun add(song: OnlineSong, info: SongInfo) {
         addToLibrary(song, info)
-            .onSuccess { job ->
-                _jobs.update { list -> listOf(job) + list.filter { it.id != job.id } }
-                _events.send(DiscoverEvent.Queued(job.info.title))
-                pollDownloads()
+            .onEach { result ->
+                result
+                    .onSuccess { job ->
+                        _jobs.update { list -> listOf(job) + list.filter { it.id != job.id } }
+                        _events.send(DiscoverEvent.Queued(job.info.title))
+                        pollDownloads()
+                    }
+                    .onFailure { _events.send(DiscoverEvent.Failed(it.asAppError())) }
             }
-            .onFailure { _events.send(DiscoverEvent.Failed(it.asAppError())) }
+            .launchIn(viewModelScope)
     }
 
-    /** Refreshes job states, every 2 s while something is still downloading. */
+    /** Follows job states until nothing is downloading; reports jobs that finished. */
     private fun pollDownloads() {
         if (polling?.isActive == true) return
-        polling = viewModelScope.launch {
-            while (true) {
-                getDownloads().onSuccess { fresh ->
+        polling = observeDownloads()
+            .onEach { result ->
+                result.onSuccess { fresh ->
                     val before = _jobs.value.associateBy { it.id }
                     fresh.filter { before[it.id]?.active == true }.forEach { job ->
                         when (job.status) {
@@ -170,10 +168,8 @@ class DiscoverViewModel @Inject constructor(
                     }
                     _jobs.value = fresh
                 }
-                if (_jobs.value.none { it.active }) break
-                delay(2_000)
             }
-        }
+            .launchIn(viewModelScope)
     }
 }
 

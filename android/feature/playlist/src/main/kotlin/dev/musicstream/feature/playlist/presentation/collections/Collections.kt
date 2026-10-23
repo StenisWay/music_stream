@@ -24,7 +24,7 @@ import dev.musicstream.core.ui.component.LoadingState
 import dev.musicstream.core.ui.component.NameDialog
 import dev.musicstream.core.ui.component.SectionHeader
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.library.R as LibraryR
 import dev.musicstream.feature.playlist.R
 import dev.musicstream.feature.playlist.domain.model.PlaylistSummary
@@ -32,7 +32,9 @@ import dev.musicstream.feature.playlist.domain.usecase.CreatePlaylistUseCase
 import dev.musicstream.feature.playlist.domain.usecase.GetPlaylistsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
 /** The user's server-side playlists, shown on the Me tab. */
@@ -44,9 +46,21 @@ class PlaylistsViewModel @Inject constructor(
     private val _playlists = MutableStateFlow<UiState<List<PlaylistSummary>>>(UiState.Loading)
     val playlists: StateFlow<UiState<List<PlaylistSummary>>> = _playlists
 
-    fun load() = viewModelScope.launch { _playlists.value = getPlaylists().toUiState() }
+    private var loading: Job? = null
 
-    fun create(name: String) = viewModelScope.launch { createPlaylist(name).onSuccess { load() } }
+    fun load() {
+        loading?.cancel()
+        loading = getPlaylists().asUiState()
+            // Keep showing the old list while refreshing.
+            .onEach { if (it !is UiState.Loading || _playlists.value !is UiState.Success) _playlists.value = it }
+            .launchIn(viewModelScope)
+    }
+
+    fun create(name: String) {
+        createPlaylist(name)
+            .onEach { result -> result.onSuccess { load() } }
+            .launchIn(viewModelScope)
+    }
 }
 
 @Composable

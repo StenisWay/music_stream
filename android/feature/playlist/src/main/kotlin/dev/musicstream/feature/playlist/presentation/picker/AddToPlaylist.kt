@@ -45,7 +45,7 @@ import dev.musicstream.core.ui.component.NameDialog
 import dev.musicstream.core.ui.error.ErrorTexts
 import dev.musicstream.core.ui.error.asAppError
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.library.R as LibraryR
 import dev.musicstream.feature.library.domain.model.Track
 import dev.musicstream.feature.playlist.R
@@ -54,12 +54,15 @@ import dev.musicstream.feature.playlist.domain.usecase.AddToPlaylistUseCase
 import dev.musicstream.feature.playlist.domain.usecase.CreatePlaylistUseCase
 import dev.musicstream.feature.playlist.domain.usecase.GetPlaylistChoicesUseCase
 import dev.musicstream.feature.playlist.domain.usecase.RemoveTrackFromPlaylistUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** One-off feedback shown as a snackbar. */
@@ -99,37 +102,49 @@ class AddToPlaylistViewModel @Inject constructor(
         load()
     }
 
-    fun load() = viewModelScope.launch {
-        val target = _pickerFor.value ?: return@launch
-        _choices.value = UiState.Loading
-        _choices.value = getChoices(target.trackId).toUiState()
+    private var loading: Job? = null
+
+    fun load() {
+        val target = _pickerFor.value ?: return
+        loading?.cancel()
+        loading = getChoices(target.trackId).asUiState()
+            .onEach { _choices.value = it }
+            .launchIn(viewModelScope)
     }
 
     fun dismissPicker() { _pickerFor.value = null }
 
-    fun toggle(choice: PlaylistChoice) = viewModelScope.launch {
-        val target = _pickerFor.value ?: return@launch
+    fun toggle(choice: PlaylistChoice) {
+        val target = _pickerFor.value ?: return
         val id = choice.playlist.id
-        if (id in _pending.value) return@launch
+        if (id in _pending.value) return
         val adding = !choice.containsTrack
         _pending.update { it + id }
         setContains(id, adding) // optimistic
-        val result = if (adding) addToPlaylist(id, listOf(target.trackId)) else removeFromPlaylist(id, target.trackId)
-        result
-            .onSuccess { p -> updateChoice(id) { it.copy(playlist = it.playlist.copy(trackCount = p.tracks.size)) } }
-            .onFailure {
-                setContains(id, !adding)
-                _events.send(AddToPlaylistEvent.Failed(it.asAppError()))
+        val change = if (adding) addToPlaylist(id, listOf(target.trackId)) else removeFromPlaylist(id, target.trackId)
+        change
+            .onEach { result ->
+                result
+                    .onSuccess { p -> updateChoice(id) { it.copy(playlist = it.playlist.copy(trackCount = p.tracks.size)) } }
+                    .onFailure {
+                        setContains(id, !adding)
+                        _events.send(AddToPlaylistEvent.Failed(it.asAppError()))
+                    }
             }
-        _pending.update { it - id }
+            .onCompletion { _pending.update { it - id } }
+            .launchIn(viewModelScope)
     }
 
-    fun createAndAdd(name: String) = viewModelScope.launch {
-        val target = _pickerFor.value ?: return@launch
+    fun createAndAdd(name: String) {
+        val target = _pickerFor.value ?: return
         _pickerFor.value = null
         createPlaylist(name, listOf(target.trackId))
-            .onSuccess { _events.send(AddToPlaylistEvent.Added(it.name)) }
-            .onFailure { _events.send(AddToPlaylistEvent.Failed(it.asAppError())) }
+            .onEach { result ->
+                result
+                    .onSuccess { _events.send(AddToPlaylistEvent.Added(it.name)) }
+                    .onFailure { _events.send(AddToPlaylistEvent.Failed(it.asAppError())) }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun setContains(id: Long, contains: Boolean) = updateChoice(id) { it.copy(containsTrack = contains) }

@@ -53,7 +53,7 @@ import dev.musicstream.core.ui.component.SectionHeader
 import dev.musicstream.core.ui.error.asAppError
 import dev.musicstream.core.ui.error.message
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.podcast.R
 import dev.musicstream.feature.podcast.domain.model.Podcast
 import dev.musicstream.feature.podcast.domain.model.PodcastSearchResult
@@ -70,7 +70,11 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -91,26 +95,25 @@ class PodcastsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     val results: StateFlow<UiState<List<PodcastSearchResult>>?> = query.debounce(400).distinctUntilChanged()
-        .flatMapLatest { q ->
-            flow {
-                if (q.isBlank()) { emit(null); return@flow }
-                emit(UiState.Loading)
-                emit(searchPodcasts(q).toUiState())
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .flatMapLatest { q -> if (q.isBlank()) flowOf(null) else searchPodcasts(q).asUiState() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val busyFeed = MutableStateFlow<String?>(null)
     val error = MutableStateFlow<AppError?>(null)
 
-    fun subscribe(feedUrl: String) = viewModelScope.launch {
-        busyFeed.value = feedUrl
-        subscribe.invoke(feedUrl).onFailure { error.value = it.asAppError() }
-        busyFeed.value = null
+    fun subscribe(feedUrl: String) {
+        subscribe.invoke(feedUrl)
+            .onStart { busyFeed.value = feedUrl }
+            .onEach { result -> result.onFailure { error.value = it.asAppError() } }
+            .onCompletion { busyFeed.value = null }
+            .launchIn(viewModelScope)
     }
 
-    fun unsubscribe(feedUrl: String) = viewModelScope.launch {
-        error.value = null
-        unsubscribe.invoke(feedUrl).onFailure { error.value = it.asAppError() }
+    fun unsubscribe(feedUrl: String) {
+        unsubscribe.invoke(feedUrl)
+            .onStart { error.value = null }
+            .onEach { result -> result.onFailure { error.value = it.asAppError() } }
+            .launchIn(viewModelScope)
     }
 }
 

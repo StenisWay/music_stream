@@ -7,6 +7,7 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import dev.musicstream.core.common.Page
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Adapts an offset/limit use case (domain [Page]) to Paging 3 so the domain
@@ -38,3 +39,7 @@ fun <T : Any> pager(pageSize: Int = 50, load: suspend (offset: Int, limit: Int) 
     Pager(PagingConfig(pageSize = pageSize, initialLoadSize = pageSize, enablePlaceholders = false)) {
         OffsetPagingSource(load)
     }.flow
+
+/** Paging over a use case that returns each page as a result flow; the first emission is the page. */
+fun <T : Any> pagerOf(pageSize: Int = 50, load: (offset: Int, limit: Int) -> Flow<Result<Page<T>>>): Flow<PagingData<T>> =
+    pager(pageSize) { offset, limit -> load(offset, limit).first().getOrThrow() }

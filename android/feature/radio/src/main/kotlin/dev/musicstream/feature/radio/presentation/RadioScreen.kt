@@ -41,7 +41,7 @@ import dev.musicstream.core.ui.component.ErrorState
 import dev.musicstream.core.ui.component.LoadingState
 import dev.musicstream.core.ui.component.SectionHeader
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.radio.R
 import dev.musicstream.feature.radio.domain.model.RadioStation
 import dev.musicstream.feature.radio.domain.usecase.ObserveFavoriteStationsUseCase
@@ -56,9 +56,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -78,13 +77,13 @@ class RadioViewModel @Inject constructor(
 
     val stations: StateFlow<UiState<List<RadioStation>>> =
         combine(query.debounce(400), country, retry) { q, c, _ -> q to c }
-            .flatMapLatest { (q, c) -> flow { emit(UiState.Loading); emit(searchStations(q, c).toUiState()) } }
+            .flatMapLatest { (q, c) -> searchStations(q, c).asUiState() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun retry() { retry.value++ }
 
-    fun toggle(station: RadioStation, isFavorite: Boolean) = viewModelScope.launch {
-        toggleFavorite(station.copy(favorite = isFavorite))
+    fun toggle(station: RadioStation, isFavorite: Boolean) {
+        toggleFavorite(station.copy(favorite = isFavorite)).launchIn(viewModelScope)
     }
 }
 

@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.musicstream.core.ui.paging.pager
+import dev.musicstream.core.ui.paging.pagerOf
 import dev.musicstream.core.ui.state.UiState
-import dev.musicstream.core.ui.state.toUiState
+import dev.musicstream.core.ui.state.asUiState
 import dev.musicstream.feature.library.domain.model.Album
 import dev.musicstream.feature.library.domain.model.AlbumDetail
 import dev.musicstream.feature.library.domain.model.Artist
@@ -32,9 +32,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class LibraryTab { SONGS, ARTISTS, ALBUMS }
@@ -59,21 +62,23 @@ class LibraryViewModel @Inject constructor(
     val categories: StateFlow<List<LibraryCategory>> = _categories
 
     val tracks: Flow<PagingData<Track>> = combine(debouncedFilter, sort, category) { f, s, c -> TrackQuery(search = f, category = c, sort = s) }
-        .flatMapLatest { q -> pager { offset, limit -> getTracks(q, offset, limit) } }
+        .flatMapLatest { q -> pagerOf { offset, limit -> getTracks(q, offset, limit) } }
         .cachedIn(viewModelScope)
 
     val artists: Flow<PagingData<Artist>> = combine(debouncedFilter, category) { f, c -> f to c }
-        .flatMapLatest { (f, c) -> pager(100) { offset, limit -> getArtists(f, c, offset, limit) } }
+        .flatMapLatest { (f, c) -> pagerOf(100) { offset, limit -> getArtists(f, c, offset, limit) } }
         .cachedIn(viewModelScope)
 
     val albums: Flow<PagingData<Album>> = combine(debouncedFilter, category) { f, c -> f to c }
-        .flatMapLatest { (f, c) -> pager(60) { offset, limit -> getAlbums(f, c, offset, limit) } }
+        .flatMapLatest { (f, c) -> pagerOf(60) { offset, limit -> getAlbums(f, c, offset, limit) } }
         .cachedIn(viewModelScope)
 
     init { loadCategories() }
 
-    fun loadCategories() = viewModelScope.launch {
-        getCategories().onSuccess { _categories.value = it }
+    fun loadCategories() {
+        getCategories()
+            .onEach { result -> result.onSuccess { _categories.value = it } }
+            .launchIn(viewModelScope)
     }
 
     /** Picks a type; a region that has nothing of that type is cleared. */
@@ -91,6 +96,7 @@ class LibraryViewModel @Inject constructor(
             .map { (region, cs) -> LibraryCategory(type.orEmpty(), region, cs.sumOf { it.trackCount }, cs.sumOf { it.artistCount }) }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ArtistViewModel @Inject constructor(
     savedState: SavedStateHandle,
@@ -98,33 +104,30 @@ class ArtistViewModel @Inject constructor(
     private val getTracks: GetTracksPageUseCase,
 ) : ViewModel() {
     private val id: String = checkNotNull(savedState["id"])
-    private val _state = MutableStateFlow<UiState<ArtistDetail>>(UiState.Loading)
-    val state: StateFlow<UiState<ArtistDetail>> = _state
+    private val reload = MutableStateFlow(0)
+
+    val state: StateFlow<UiState<ArtistDetail>> = reload
+        .flatMapLatest { getArtist(id).asUiState() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     val tracks: Flow<PagingData<Track>> =
-        pager { offset, limit -> getTracks(TrackQuery(artistId = id, sort = TrackSort.ALBUM), offset, limit) }.cachedIn(viewModelScope)
+        pagerOf { offset, limit -> getTracks(TrackQuery(artistId = id, sort = TrackSort.ALBUM), offset, limit) }.cachedIn(viewModelScope)
 
-    init { load() }
-
-    fun load() = viewModelScope.launch {
-        _state.value = UiState.Loading
-        _state.value = getArtist(id).toUiState()
-    }
+    fun load() = reload.update { it + 1 }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AlbumViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val getAlbum: GetAlbumDetailUseCase,
 ) : ViewModel() {
     private val id: String = checkNotNull(savedState["id"])
-    private val _state = MutableStateFlow<UiState<AlbumDetail>>(UiState.Loading)
-    val state: StateFlow<UiState<AlbumDetail>> = _state
+    private val reload = MutableStateFlow(0)
 
-    init { load() }
+    val state: StateFlow<UiState<AlbumDetail>> = reload
+        .flatMapLatest { getAlbum(id).asUiState() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
-    fun load() = viewModelScope.launch {
-        _state.value = UiState.Loading
-        _state.value = getAlbum(id).toUiState()
-    }
+    fun load() = reload.update { it + 1 }
 }

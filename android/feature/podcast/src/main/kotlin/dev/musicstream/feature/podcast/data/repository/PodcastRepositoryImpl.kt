@@ -8,7 +8,7 @@ import dev.musicstream.core.database.dao.PodcastDao
 import dev.musicstream.core.database.entity.EpisodeEntity
 import dev.musicstream.core.database.entity.EpisodeHistoryEntity
 import dev.musicstream.core.database.entity.PodcastEntity
-import dev.musicstream.core.network.apiCall
+import dev.musicstream.core.network.apiFlow
 import dev.musicstream.core.network.di.PublicClient
 import dev.musicstream.feature.podcast.data.remote.ITunesApi
 import dev.musicstream.feature.podcast.data.rss.ParsedFeed
@@ -23,12 +23,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
@@ -56,7 +58,7 @@ class PodcastRepositoryImpl @Inject constructor(
 
     override val subscriptions = podcasts.observeAll().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun episodePage(feedUrl: String, offset: Int, limit: Int): Page<Episode> = withContext(Dispatchers.IO) {
+    override fun episodePage(feedUrl: String, offset: Int, limit: Int): Flow<Page<Episode>> = io {
         var items = episodes.page(feedUrl, offset, limit)
         // Out of stored episodes: walk older RSS pages until this page is full or there are none left.
         while (items.size < limit && loadOlderPage(feedUrl)) {
@@ -77,7 +79,7 @@ class PodcastRepositoryImpl @Inject constructor(
         true
     }
 
-    override suspend fun fetchFeedPage(feedUrl: String, url: String) = withContext(Dispatchers.IO) {
+    override fun fetchFeedPage(feedUrl: String, url: String) = io {
         val feed = fetch(url, feedUrl)
         FeedPage(
             Podcast(feedUrl, feed.title, feed.author, feed.description, feed.artworkUrl, System.currentTimeMillis()),
@@ -88,14 +90,14 @@ class PodcastRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun search(term: String): List<PodcastSearchResult> = apiCall {
+    override fun search(term: String): Flow<List<PodcastSearchResult>> = apiFlow {
         itunes.searchPodcasts(term).results.mapNotNull { r ->
             val feed = r.feedUrl ?: return@mapNotNull null
             PodcastSearchResult(feed, r.collectionName, r.artistName, r.artworkUrl600 ?: r.artworkUrl100)
         }.distinctBy { it.feedUrl } // iTunes can list several collections that share one RSS feed
     }
 
-    override suspend fun subscribe(feedUrl: String) = withContext(Dispatchers.IO) {
+    override fun subscribe(feedUrl: String) = io {
         val feed = fetch(feedUrl)
         val now = System.currentTimeMillis()
         val entity = PodcastEntity(feedUrl, feed.title, feed.author, feed.description, feed.artworkUrl, now, now, feed.nextPageUrl)
@@ -105,9 +107,13 @@ class PodcastRepositoryImpl @Inject constructor(
     }
 
     /** Episodes go with the subscription; the listening history stays. */
-    override suspend fun unsubscribe(feedUrl: String) = podcasts.delete(feedUrl)
+    override fun unsubscribe(feedUrl: String) = io { podcasts.delete(feedUrl) }
 
-    override suspend fun refresh(feedUrl: String) = withContext(Dispatchers.IO) {
+    override fun refresh(feedUrl: String) = io { refreshFeed(feedUrl) }
+
+    override fun refreshAll() = io { refreshAllFeeds() }
+
+    private suspend fun refreshFeed(feedUrl: String) {
         val existing = podcasts.get(feedUrl) ?: throw AppError.NotFound()
         val feed = fetch(feedUrl)
         podcasts.upsert(
@@ -120,10 +126,10 @@ class PodcastRepositoryImpl @Inject constructor(
         episodes.merge(feed.toEntities(feedUrl))
     }
 
-    override suspend fun refreshAll() = coroutineScope {
+    private suspend fun refreshAllFeeds() = coroutineScope {
         val limit = Semaphore(4)
         val failures = podcasts.all().map { p ->
-            async { limit.withPermit { runCatching { refresh(p.feedUrl) }.exceptionOrNull() } }
+            async { limit.withPermit { runCatching { refreshFeed(p.feedUrl) }.exceptionOrNull() } }
         }.awaitAll().filterNotNull()
         // One broken feed must not hide the others; report only if all failed.
         if (failures.isNotEmpty() && failures.size == podcasts.all().size) throw failures.first()
@@ -141,13 +147,13 @@ class PodcastRepositoryImpl @Inject constructor(
         episodes.forEach { queued[it.id] = it.toHistory(podcastTitle, positionMs = 0, completed = false, lastPlayedAt = 0) }
     }
 
-    override suspend fun markStarted(episodeId: String) = withContext(Dispatchers.IO) {
-        val entry = historyDao.get(episodeId) ?: newHistoryEntry(episodeId) ?: return@withContext
+    override fun markStarted(episodeId: String) = io {
+        val entry = historyDao.get(episodeId) ?: newHistoryEntry(episodeId) ?: return@io
         historyDao.upsert(entry.copy(lastPlayedAt = System.currentTimeMillis()))
     }
 
-    override suspend fun saveProgress(episodeId: String, positionMs: Long, durationMs: Long) = withContext(Dispatchers.IO) {
-        val entry = historyDao.get(episodeId) ?: newHistoryEntry(episodeId) ?: return@withContext
+    override fun saveProgress(episodeId: String, positionMs: Long, durationMs: Long) = io {
+        val entry = historyDao.get(episodeId) ?: newHistoryEntry(episodeId) ?: return@io
         // Auto-advance reports the finished item without a duration: fall back to the known one.
         val duration = if (durationMs > 0) durationMs else entry.durationMs
         historyDao.upsert(
@@ -160,7 +166,7 @@ class PodcastRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun setCompleted(episode: Episode, podcastTitle: String, completed: Boolean) = withContext(Dispatchers.IO) {
+    override fun setCompleted(episode: Episode, podcastTitle: String, completed: Boolean) = io {
         val entry = historyDao.get(episode.id) ?: episode.toHistory(podcastTitle, 0, false, 0)
         historyDao.upsert(
             entry.copy(
@@ -171,7 +177,10 @@ class PodcastRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun removeFromHistory(episodeId: String) = historyDao.delete(episodeId)
+    override fun removeFromHistory(episodeId: String) = io { historyDao.delete(episodeId) }
+
+    /** One unit of work as a cold flow on the IO dispatcher: emits [block]'s result once. */
+    private fun <T> io(block: suspend () -> T): Flow<T> = flow { emit(block()) }.flowOn(Dispatchers.IO)
 
     /** Builds a history row from the queued metadata or the stored episode, if either is known. */
     private suspend fun newHistoryEntry(episodeId: String): EpisodeHistoryEntity? {

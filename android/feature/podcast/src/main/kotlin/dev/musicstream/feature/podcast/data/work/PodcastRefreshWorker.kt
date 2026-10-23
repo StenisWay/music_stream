@@ -11,7 +11,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import dev.musicstream.feature.podcast.domain.repository.PodcastRepository
+import dev.musicstream.feature.podcast.domain.usecase.RefreshPodcastsUseCase
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /** Periodically fetches new episodes of subscribed podcasts. */
@@ -19,15 +20,14 @@ import java.util.concurrent.TimeUnit
 class PodcastRefreshWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val podcasts: PodcastRepository,
+    private val refresh: RefreshPodcastsUseCase,
 ) : CoroutineWorker(context, params) {
 
-    override suspend fun doWork(): Result = try {
-        podcasts.refreshAll()
-        Result.success()
-    } catch (e: Exception) {
-        if (runAttemptCount < 3) Result.retry() else Result.failure()
-    }
+    override suspend fun doWork(): Result =
+        refresh().first().fold(
+            onSuccess = { Result.success() },
+            onFailure = { if (runAttemptCount < 3) Result.retry() else Result.failure() },
+        )
 
     companion object {
         private const val NAME = "podcast-refresh"

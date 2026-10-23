@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
 import javax.inject.Inject
 
 enum class HistoryFilter { ALL, UNFINISHED, FINISHED }
@@ -61,11 +61,13 @@ class PodcastHistoryViewModel @Inject constructor(
     /** Resumes where it was left (finished ones start over). */
     fun play(entry: HistoryEntry) = playEpisodes(listOf(entry.episode), 0, entry.podcastTitle)
 
-    fun setCompleted(entry: HistoryEntry, completed: Boolean) = viewModelScope.launch {
-        setCompleted.invoke(entry.episode, entry.podcastTitle, completed)
+    fun setCompleted(entry: HistoryEntry, completed: Boolean) {
+        setCompleted.invoke(entry.episode, entry.podcastTitle, completed).launchIn(viewModelScope)
     }
 
-    fun remove(entry: HistoryEntry) = viewModelScope.launch { removeFromHistory(entry.episode.id) }
+    fun remove(entry: HistoryEntry) {
+        removeFromHistory(entry.episode.id).launchIn(viewModelScope)
+    }
 }
 
 @Composable

@@ -1,6 +1,6 @@
 package dev.musicstream.feature.discover.data.repository
 
-import dev.musicstream.core.network.apiCall
+import dev.musicstream.core.network.apiFlow
 import dev.musicstream.feature.discover.data.remote.CandidateDto
 import dev.musicstream.feature.discover.data.remote.DiscoverApi
 import dev.musicstream.feature.discover.data.remote.DownloadRequestDto
@@ -16,15 +16,15 @@ import javax.inject.Singleton
 
 @Singleton
 class DiscoverRepositoryImpl @Inject constructor(private val api: DiscoverApi) : DiscoverRepository {
-    override suspend fun search(query: String, source: OnlineSource) = apiCall {
+    override fun search(query: String, source: OnlineSource) = apiFlow {
         api.search(query, source.apiValue).items.mapNotNull { it.toDomain() }
     }
 
-    override suspend fun download(url: String, info: SongInfo) = apiCall {
+    override fun download(url: String, info: SongInfo) = apiFlow {
         api.download(DownloadRequestDto(url, info.artist, info.title, info.album)).toDomain()
     }
 
-    override suspend fun downloads() = apiCall { api.downloads().items.map { it.toDomain() } }
+    override fun downloads() = apiFlow { api.downloads().items.map { it.toDomain() } }
 }
 
 private fun CandidateDto.toDomain(): OnlineSong? {
